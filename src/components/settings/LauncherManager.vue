@@ -60,32 +60,60 @@ const handleSave = async (launcher: Partial<Launcher>) => {
   try {
     if (editingLauncher.value) {
       const oldLauncher = launchers.value.find(l => l.id === editingLauncher.value!.id)
+      const shortcutChanged = oldLauncher?.shortcut !== launcher.shortcut
 
-      if (oldLauncher?.shortcut && oldLauncher.shortcut !== launcher.shortcut) {
-        await launcherStore.unregisterLauncherShortcut(oldLauncher.shortcut)
+      // 只有快捷键变化时才处理注销/注册
+      if (shortcutChanged) {
+        // 注销旧快捷键
+        if (oldLauncher?.shortcut) {
+          try {
+            await launcherStore.unregisterLauncherShortcut(oldLauncher.shortcut)
+          } catch (error) {
+            console.warn('注销旧快捷键失败:', error)
+          }
+        }
       }
 
       const updated = { ...editingLauncher.value, ...launcher } as Launcher
       await launcherStore.updateLauncher(updated)
 
-      if (launcher.shortcut) {
-        await launcherStore.registerLauncherShortcut(launcher.shortcut, updated.id)
+      // 只有快捷键变化且有新快捷键时才注册
+      if (shortcutChanged && launcher.shortcut) {
+        try {
+          await launcherStore.registerLauncherShortcut(launcher.shortcut, updated.id)
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          console.error('注册快捷键失败:', errorMsg)
+          emit('message', 'error', `启动器已保存，但快捷键注册失败: ${errorMsg}`)
+          dialogOpen.value = false
+          return
+        }
       }
 
       emit('message', 'success', '启动器已更新')
     } else {
       const newLauncher = await launcherStore.addLauncher(launcher as Omit<Launcher, 'id'>)
 
+      // 注册快捷键
       if (launcher.shortcut) {
-        await launcherStore.registerLauncherShortcut(launcher.shortcut, newLauncher.id)
+        try {
+          await launcherStore.registerLauncherShortcut(launcher.shortcut, newLauncher.id)
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          console.error('注册快捷键失败:', errorMsg)
+          emit('message', 'error', `启动器已创建，但快捷键注册失败: ${errorMsg}`)
+          dialogOpen.value = false
+          return
+        }
       }
 
       emit('message', 'success', '启动器已创建')
     }
     dialogOpen.value = false
   } catch (error) {
-    console.error('保存启动器失败:', error)
-    emit('message', 'error', '保存启动器失败')
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error('保存启动器失败:', errorMsg)
+    emit('message', 'error', `保存启动器失败: ${errorMsg}`)
   }
 }
 </script>

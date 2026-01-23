@@ -22,11 +22,14 @@ const delegatedProps = computed(() => {
     v-bind="delegatedProps"
     :class="
       cn(
-        'relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none scroll-my-1 hover:bg-muted/50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         props.class
       )
     "
     @select="emits('select', $event)"
+    @pointerenter.prevent
+    @pointerleave.prevent
+    @pointermove.prevent
   >
     <slot />
   </ComboboxItem>

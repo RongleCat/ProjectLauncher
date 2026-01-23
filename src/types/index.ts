@@ -36,3 +36,13 @@ export interface CacheData {
 }
 
 export type VersionControl = 'Git' | 'Svn' | 'Mercurial' | 'None'
+
+export type Platform = 'darwin' | 'win32' | 'linux'
+
+export interface PresetApp {
+  id: string
+  name: string
+  icon: string
+  command: string
+  platform: Platform | 'all'
+}

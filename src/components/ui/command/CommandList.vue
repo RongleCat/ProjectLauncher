@@ -8,7 +8,7 @@ const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 
 <template>
   <ComboboxContent
-    :class="cn('max-h-[300px] overflow-y-auto overflow-x-hidden', props.class)"
+    :class="cn('max-h-[450px] overflow-y-auto overflow-x-hidden', props.class)"
   >
     <div role="presentation">
       <slot />

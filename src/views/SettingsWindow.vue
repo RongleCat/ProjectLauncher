@@ -3,15 +3,13 @@ import { ref, onMounted } from 'vue'
 import { useSettingsStore } from '@/store'
 import { useLauncherStore } from '@/stores/launcher'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 import GeneralSettings from '@/components/settings/GeneralSettings.vue'
 import LauncherManager from '@/components/settings/LauncherManager.vue'
-import { Settings, Rocket, Save, CheckCircle, XCircle } from 'lucide-vue-next'
+import { Settings, Rocket, CheckCircle, XCircle } from 'lucide-vue-next'
 
 const settingsStore = useSettingsStore()
 const launcherStore = useLauncherStore()
 
-const saving = ref(false)
 const message = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 
 onMounted(async () => {
@@ -26,31 +24,14 @@ const showMessage = (type: 'success' | 'error', text: string) => {
     message.value = null
   }, 3000)
 }
-
-const handleSaveConfig = async () => {
-  saving.value = true
-  try {
-    await settingsStore.saveConfig()
-    showMessage('success', '配置已保存')
-  } catch (error) {
-    console.error('保存配置失败:', error)
-    showMessage('error', '保存配置失败')
-  } finally {
-    saving.value = false
-  }
-}
 </script>
 
 <template>
   <div class="min-h-screen bg-background text-foreground">
     <!-- Header -->
     <header class="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex h-14 items-center justify-between px-6">
+      <div class="flex h-14 items-center px-6">
         <h1 class="text-lg font-semibold tracking-tight">设置</h1>
-        <Button size="sm" :disabled="saving" @click="handleSaveConfig">
-          <Save class="mr-2 h-4 w-4" />
-          {{ saving ? '保存中...' : '保存配置' }}
-        </Button>
       </div>
     </header>
 
@@ -65,7 +46,7 @@ const handleSaveConfig = async () => {
     >
       <div
         v-if="message"
-        class="fixed top-16 left-1/2 z-50 -translate-x-1/2"
+        class="fixed top-16 left-1/2 z-100 -translate-x-1/2"
       >
         <div
           class="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm shadow-lg"

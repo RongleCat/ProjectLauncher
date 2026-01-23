@@ -21,6 +21,7 @@ impl LauncherService {
 
     #[cfg(target_os = "windows")]
     fn open_with_app(app_path: &str, project_path: &str) -> Result<()> {
+        println!("[Launcher] 执行命令: {} {}", app_path, project_path);
         Command::new(app_path)
             .arg(project_path)
             .spawn()?;
@@ -29,6 +30,7 @@ impl LauncherService {
 
     #[cfg(target_os = "macos")]
     fn open_with_app(app_path: &str, project_path: &str) -> Result<()> {
+        println!("[Launcher] 执行命令: open -a \"{}\" \"{}\"", app_path, project_path);
         Command::new("open")
             .arg("-a")
             .arg(app_path)
@@ -39,6 +41,7 @@ impl LauncherService {
 
     #[cfg(target_os = "linux")]
     fn open_with_app(app_path: &str, project_path: &str) -> Result<()> {
+        println!("[Launcher] 执行命令: {} {}", app_path, project_path);
         Command::new(app_path)
             .arg(project_path)
             .spawn()?;
@@ -47,6 +50,7 @@ impl LauncherService {
 
     fn execute_command(cmd: &str, project_path: &str) -> Result<()> {
         let cmd_replaced = cmd.replace("{project}", project_path);
+        println!("[Launcher] 执行命令: {}", cmd_replaced);
 
         #[cfg(target_os = "windows")]
         {

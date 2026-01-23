@@ -10,19 +10,20 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "search",
         "title": "Project Launcher",
-        "width": 700,
-        "height": 500,
-        "decorations": true,
-        "transparent": false,
-        "alwaysOnTop": false,
-        "skipTaskbar": false,
-        "visible": true,
+        "width": 800,
+        "height": 680,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
         "center": true,
-        "resizable": true,
+        "resizable": false,
         "focus": true
       }
     ],

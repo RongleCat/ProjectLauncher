@@ -12,6 +12,9 @@ use models::config::Config;
 use std::sync::Mutex;
 use std::fs;
 
+#[cfg(target_os = "macos")]
+use cocoa::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -24,6 +27,13 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
+            // macOS: 启动时设置为 Accessory 模式，不显示在 Dock
+            #[cfg(target_os = "macos")]
+            unsafe {
+                let ns_app = NSApp();
+                ns_app.setActivationPolicy_(NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory);
+            }
+
             // 初始化应用状态
             let app_data_dir = app.path().app_data_dir()?;
 
@@ -34,10 +44,28 @@ pub fn run() {
 
             // 加载配置
             let config_path = app_data_dir.join("config.json");
+            println!("配置文件路径: {:?}", config_path);
             let config = if config_path.exists() {
-                let content = fs::read_to_string(config_path)?;
-                serde_json::from_str(&content).unwrap_or_default()
+                match fs::read_to_string(&config_path) {
+                    Ok(content) => {
+                        match serde_json::from_str::<Config>(&content) {
+                            Ok(cfg) => {
+                                println!("配置加载成功，启动器数量: {}", cfg.launchers.len());
+                                cfg
+                            }
+                            Err(e) => {
+                                eprintln!("配置文件解析失败: {}, 使用默认配置", e);
+                                Config::default()
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("读取配置文件失败: {}, 使用默认配置", e);
+                        Config::default()
+                    }
+                }
             } else {
+                println!("配置文件不存在，使用默认配置");
                 Config::default()
             };
 
@@ -160,6 +188,7 @@ pub fn run() {
             commands::window::show_search_window,
             commands::window::hide_search_window,
             commands::window::show_settings_window,
+            commands::window::hide_settings_window,
             commands::window::quit_app,
             // 配置相关
             commands::config::get_config,

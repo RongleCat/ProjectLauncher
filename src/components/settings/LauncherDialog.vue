@@ -16,7 +16,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { FolderOpen, Keyboard, X, Wand2 } from 'lucide-vue-next'
+import { FolderOpen, Keyboard, X, Wand2, Folder, Terminal, SquareTerminal } from 'lucide-vue-next'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { getPresetApps, getPresetAppById, getCurrentPlatform } from '@/config/presetApps'
 
 const props = defineProps<{
   open: boolean
@@ -34,6 +42,17 @@ const path = ref('')
 const command = ref('')
 const isCommand = ref(false)
 const shortcut = ref('')
+const selectedPreset = ref('')
+
+// Preset applications for current platform
+const presetApps = computed(() => getPresetApps())
+
+// Icon component mapping
+const iconComponents = {
+  Folder,
+  Terminal,
+  SquareTerminal,
+} as const
 
 // Shortcut recording
 const {
@@ -41,6 +60,7 @@ const {
   formattedShortcut,
   shortcutString,
   conflict,
+  needsMainKey,
   startRecording,
   stopRecording,
   recordKey,
@@ -57,12 +77,14 @@ watch(
         command.value = props.launcher.command || ''
         isCommand.value = props.launcher.is_command
         shortcut.value = props.launcher.shortcut || ''
+        selectedPreset.value = ''
       } else {
         name.value = ''
         path.value = ''
         command.value = ''
         isCommand.value = false
         shortcut.value = ''
+        selectedPreset.value = ''
       }
     }
   },
@@ -105,6 +127,7 @@ const selectPath = async () => {
     })
     if (selected) {
       path.value = selected as string
+      selectedPreset.value = '' // Clear preset when manually selecting
       if (!isCommand.value) {
         generateDefaultCommand()
       }
@@ -114,9 +137,28 @@ const selectPath = async () => {
   }
 }
 
-const isWindows = () => {
-  return navigator.platform.toLowerCase().includes('win')
+const handlePresetSelect = (presetId: string) => {
+  const preset = getPresetAppById(presetId)
+  if (!preset) return
+
+  selectedPreset.value = presetId
+  path.value = '' // Clear path for preset apps
+  command.value = preset.command
+  isCommand.value = true // Enable command mode for presets
+
+  // Auto-fill name if empty
+  if (!name.value) {
+    name.value = preset.name
+  }
 }
+
+const clearPreset = () => {
+  selectedPreset.value = ''
+  command.value = ''
+  isCommand.value = false
+}
+
+const isWindows = () => getCurrentPlatform() === 'win32'
 
 const generateDefaultCommand = () => {
   if (!path.value) return
@@ -194,20 +236,65 @@ const handleClose = () => {
 
         <!-- Application Path -->
         <div class="space-y-2">
-          <Label for="launcher-path">应用程序路径</Label>
+          <Label>应用程序</Label>
           <div class="flex gap-2">
+            <!-- Preset Apps Select -->
+            <Select
+              v-if="presetApps.length > 0"
+              :model-value="selectedPreset"
+              @update:model-value="handlePresetSelect"
+            >
+              <SelectTrigger class="w-[140px]">
+                <SelectValue placeholder="快捷选择" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="preset in presetApps"
+                  :key="preset.id"
+                  :value="preset.id"
+                >
+                  <div class="flex items-center gap-2">
+                    <component
+                      :is="iconComponents[preset.icon as keyof typeof iconComponents]"
+                      class="h-4 w-4"
+                    />
+                    <span>{{ preset.name }}</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <!-- Path Input -->
             <Input
               id="launcher-path"
               v-model="path"
-              placeholder="选择应用程序..."
+              :placeholder="selectedPreset ? '使用预设应用' : '选择应用程序...'"
               readonly
               class="flex-1 cursor-pointer"
-              @click="selectPath"
+              :class="{ 'bg-muted': selectedPreset }"
+              :disabled="!!selectedPreset"
+              @click="!selectedPreset && selectPath()"
             />
-            <Button variant="outline" size="icon" @click="selectPath">
+            <Button
+              variant="outline"
+              size="icon"
+              :disabled="!!selectedPreset"
+              @click="selectPath"
+            >
               <FolderOpen class="h-4 w-4" />
             </Button>
+            <Button
+              v-if="selectedPreset"
+              variant="outline"
+              size="icon"
+              @click="clearPreset"
+            >
+              <X class="h-4 w-4" />
+            </Button>
           </div>
+          <p v-if="selectedPreset" class="text-xs text-muted-foreground">
+            已选择预设应用，命令将自动生成
+          </p>
         </div>
 
         <Separator />
@@ -217,10 +304,10 @@ const handleClose = () => {
           <div class="space-y-0.5">
             <Label>命令模式</Label>
             <p class="text-xs text-muted-foreground">
-              启用后可自定义完整启动命令
+              {{ selectedPreset ? '预设应用已启用命令模式' : '启用后可自定义完整启动命令' }}
             </p>
           </div>
-          <Switch v-model:checked="isCommand" />
+          <Switch v-model:checked="isCommand" :disabled="!!selectedPreset" />
         </div>
 
         <!-- Command -->
@@ -228,7 +315,7 @@ const handleClose = () => {
           <div class="flex items-center justify-between">
             <Label for="launcher-command">启动命令</Label>
             <Button
-              v-if="path && !isCommand"
+              v-if="path && !isCommand && !selectedPreset"
               variant="ghost"
               size="sm"
               class="h-7 px-2 text-xs"
@@ -242,8 +329,8 @@ const handleClose = () => {
             id="launcher-command"
             v-model="command"
             :placeholder="isCommand ? '输入自定义命令...' : '选择应用后自动生成'"
-            :readonly="!isCommand"
-            :class="{ 'bg-muted cursor-not-allowed': !isCommand }"
+            :readonly="!isCommand || !!selectedPreset"
+            :class="{ 'bg-muted cursor-not-allowed': !isCommand || !!selectedPreset }"
           />
           <p class="text-xs text-muted-foreground">
             使用 <code class="rounded bg-muted px-1 py-0.5 font-mono">{project}</code> 代表项目路径
@@ -284,6 +371,9 @@ const handleClose = () => {
           </div>
           <p v-if="conflict" class="text-xs text-destructive">
             此快捷键可能与其他应用冲突
+          </p>
+          <p v-if="needsMainKey && recording" class="text-xs text-amber-600">
+            请继续按下一个字母或数字键完成组合
           </p>
         </div>
       </div>
