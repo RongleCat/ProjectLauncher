@@ -6,9 +6,15 @@ pub struct Config {
     pub workspaces: Vec<String>,
     pub ignore_dirs: Vec<String>,
     pub launchers: Vec<Launcher>,
-    pub global_shortcut: Option<String>,
     pub autostart: bool,
     pub theme: String,
+    /// 项目列表排序方式: "hits" | "last_opened" | "name"
+    #[serde(default = "default_project_sort_by")]
+    pub project_sort_by: String,
+}
+
+fn default_project_sort_by() -> String {
+    "hits".to_string()
 }
 
 impl Default for Config {
@@ -23,9 +29,9 @@ impl Default for Config {
                 ".git".to_string(),
             ],
             launchers: Vec::new(),
-            global_shortcut: Some("CommandOrControl+Shift+P".to_string()),
             autostart: false,
             theme: "light".to_string(),
+            project_sort_by: "hits".to_string(),
         }
     }
 }

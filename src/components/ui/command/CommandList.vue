@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { type HTMLAttributes, computed } from 'vue'
-import { ComboboxContent } from 'radix-vue'
+import { type HTMLAttributes } from 'vue'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 </script>
 
 <template>
-  <ComboboxContent
-    :class="cn('max-h-[450px] overflow-y-auto overflow-x-hidden', props.class)"
+  <div
+    role="listbox"
+    :class="cn('max-h-[476px] overflow-y-auto overflow-x-hidden min-h-0 shrink-0', props.class)"
   >
-    <div role="presentation">
-      <slot />
-    </div>
-  </ComboboxContent>
+    <slot />
+  </div>
 </template>

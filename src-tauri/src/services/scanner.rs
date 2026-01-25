@@ -81,4 +81,30 @@ mod tests {
         assert!(scanner.should_ignore(Path::new("/path/.hidden")));
         assert!(!scanner.should_ignore(Path::new("/path/src")));
     }
+
+    #[test]
+    fn test_path_with_spaces() {
+        let scanner = ProjectScanner::new(vec!["node_modules".to_string()]);
+
+        // 包含空格的路径不应该被忽略
+        assert!(!scanner.should_ignore(Path::new("/path/my project")));
+        assert!(!scanner.should_ignore(Path::new("/path/project name with spaces")));
+        assert!(!scanner.should_ignore(Path::new("/Users/test/Documents/cc workspace")));
+
+        // 包含空格但在忽略列表中的目录应该被忽略
+        let scanner_with_space = ProjectScanner::new(vec!["my project".to_string()]);
+        assert!(scanner_with_space.should_ignore(Path::new("/path/my project")));
+    }
+
+    #[test]
+    fn test_path_to_str_with_spaces() {
+        // 验证 Path::to_str() 对包含空格的路径正常工作
+        let path = Path::new("/Users/test/cc workspace");
+        assert!(path.to_str().is_some());
+        assert_eq!(path.to_str().unwrap(), "/Users/test/cc workspace");
+
+        let name = path.file_name().unwrap().to_str();
+        assert!(name.is_some());
+        assert_eq!(name.unwrap(), "cc workspace");
+    }
 }

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import type { Config } from '@/types'
+import type { Config, ProjectSortBy } from '@/types'
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
@@ -8,12 +8,16 @@ export const useSettingsStore = defineStore('settings', {
       workspaces: [],
       ignore_dirs: ['node_modules', 'dist', 'build', 'target'],
       launchers: [],
-      global_shortcut: 'CommandOrControl+Shift+P',
       autostart: false,
       theme: 'light',
+      project_sort_by: 'hits' as ProjectSortBy,
     } as Config,
     loading: false,
   }),
+
+  getters: {
+    projectSortBy: (state) => state.config.project_sort_by,
+  },
 
   actions: {
     async loadConfig() {
@@ -36,6 +40,11 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
 
+    async setProjectSortBy(sortBy: ProjectSortBy) {
+      this.config.project_sort_by = sortBy
+      await this.saveConfig()
+    },
+
     async setAutostart(enable: boolean) {
       try {
         await invoke('set_autostart', { enable })
@@ -54,25 +63,6 @@ export const useSettingsStore = defineStore('settings', {
       } catch (error) {
         console.error('获取开机启动状态失败:', error)
         return false
-      }
-    },
-
-    async registerGlobalShortcut(shortcut: string) {
-      try {
-        await invoke('register_global_shortcut', { shortcut })
-        this.config.global_shortcut = shortcut
-      } catch (error) {
-        console.error('注册全局快捷键失败:', error)
-        throw error
-      }
-    },
-
-    async unregisterGlobalShortcut(shortcut: string) {
-      try {
-        await invoke('unregister_global_shortcut', { shortcut })
-      } catch (error) {
-        console.error('注销全局快捷键失败:', error)
-        throw error
       }
     },
   },

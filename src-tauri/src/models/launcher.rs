@@ -7,10 +7,13 @@ pub struct Launcher {
     pub name: String,
     #[serde(default)]
     pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     #[serde(default)]
     pub is_command: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shortcut: Option<String>,
 }
 

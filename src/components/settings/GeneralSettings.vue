@@ -6,7 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Plus, Trash2, FolderOpen } from 'lucide-vue-next'
+import type { ProjectSortBy } from '@/types'
 
 const settingsStore = useSettingsStore()
 const { config } = storeToRefs(settingsStore)
@@ -14,6 +22,23 @@ const { config } = storeToRefs(settingsStore)
 const emit = defineEmits<{
   (e: 'message', type: 'success' | 'error', text: string): void
 }>()
+
+// 排序选项
+const sortOptions: { value: ProjectSortBy; label: string; description: string }[] = [
+  { value: 'hits', label: '打开次数', description: '按打开次数降序，相同则按名称排序' },
+  { value: 'last_opened', label: '最近打开', description: '按上一次打开时间降序' },
+  { value: 'name', label: '名称排序', description: '完全按项目名称字母排序' },
+]
+
+const handleSortChange = async (value: string) => {
+  try {
+    await settingsStore.setProjectSortBy(value as ProjectSortBy)
+    emit('message', 'success', '排序方式已更新')
+  } catch (error) {
+    console.error('设置排序方式失败:', error)
+    emit('message', 'error', '设置排序方式失败')
+  }
+}
 
 const handleAddWorkspace = async () => {
   try {
@@ -63,7 +88,7 @@ const handleAutostartChange = async (checked: boolean) => {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-6">
     <!-- 开机启动 -->
     <section class="space-y-4">
       <div>
@@ -84,6 +109,37 @@ const handleAutostartChange = async (checked: boolean) => {
 
     <Separator />
 
+    <!-- 列表排序方式 -->
+    <section class="space-y-4">
+      <div>
+        <h3 class="text-base font-medium">列表排序方式</h3>
+        <p class="text-sm text-muted-foreground">设置搜索窗口中项目列表的排序规则</p>
+      </div>
+      <div class="flex items-center justify-between rounded-lg border p-4">
+        <div class="space-y-0.5">
+          <Label class="text-sm font-medium">排序方式</Label>
+          <p class="text-xs text-muted-foreground">
+            {{ sortOptions.find((o) => o.value === config.project_sort_by)?.description }}
+          </p>
+        </div>
+        <Select
+          :model-value="config.project_sort_by"
+          @update:model-value="handleSortChange"
+        >
+          <SelectTrigger class="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </section>
+
+    <Separator />
+
     <!-- 工作区目录 -->
     <section class="space-y-4">
       <div class="flex items-center justify-between">
@@ -92,7 +148,7 @@ const handleAutostartChange = async (checked: boolean) => {
           <p class="text-sm text-muted-foreground">设置项目扫描的根目录</p>
         </div>
         <Button size="sm" variant="outline" @click="handleAddWorkspace">
-          <Plus class="mr-2 h-4 w-4" />
+          <Plus class="h-4 w-4" />
           添加目录
         </Button>
       </div>

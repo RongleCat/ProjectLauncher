@@ -43,6 +43,11 @@
   border-color: var(--color-border);
 }
 
+/* Remove focus outline globally */
+*:focus {
+  outline: none;
+}
+
 html {
   font-family: var(--font-sans);
 }
@@ -87,45 +92,4 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   opacity: 0.5;
-}
-
-/* Animation utilities for radix-vue */
-@keyframes enter {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes exit {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-[data-state="open"] {
-  animation: enter 150ms ease-out;
-}
-
-[data-state="closed"] {
-  animation: exit 150ms ease-in;
 }

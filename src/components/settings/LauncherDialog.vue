@@ -204,7 +204,7 @@ const handleSave = () => {
     path: path.value,
     command: command.value,
     is_command: isCommand.value,
-    shortcut: shortcut.value || undefined,
+    shortcut: shortcut.value || null,
   })
 }
 
@@ -321,7 +321,7 @@ const handleClose = () => {
               class="h-7 px-2 text-xs"
               @click="generateDefaultCommand"
             >
-              <Wand2 class="mr-1 h-3 w-3" />
+              <Wand2 class="h-3 w-3" />
               生成
             </Button>
           </div>

@@ -20,6 +20,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -74,38 +75,16 @@ pub fn run() {
                 config: Mutex::new(config.clone()),
             });
 
-            // 注册全局快捷键
-            if let Some(ref shortcut) = config.global_shortcut {
-                let manager = ShortcutManager::new(app.handle().clone());
-                if let Err(e) = manager.register(shortcut) {
-                    eprintln!("注册全局快捷键失败: {}", e);
-                } else {
-                    println!("全局快捷键已注册: {}", shortcut);
-                }
-            }
-
-            // 注册启动器快捷键
+            // 注册启动器快捷键（使用 tauri-plugin-global-shortcut）
+            let shortcut_manager = ShortcutManager::new(app.handle().clone());
             for launcher in &config.launchers {
                 if let Some(ref shortcut) = launcher.shortcut {
-                    let manager = ShortcutManager::new(app.handle().clone());
-                    if let Err(e) = manager.register_for_launcher(shortcut, &launcher.id) {
+                    if let Err(e) = shortcut_manager.register_for_launcher(shortcut, &launcher.id) {
                         eprintln!("注册启动器快捷键失败 [{}]: {}", launcher.name, e);
                     } else {
                         println!("启动器快捷键已注册: {} -> {}", launcher.name, shortcut);
                     }
                 }
-            }
-
-            // 窗口关闭事件处理（隐藏到托盘）
-            if let Some(window) = app.get_webview_window("search") {
-                let window_clone = window.clone();
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        // 隐藏窗口而不是关闭
-                        let _ = window_clone.hide();
-                        api.prevent_close();
-                    }
-                });
             }
 
             // 开发工具（需要时可以手动打开：右键 -> Inspect Element）
@@ -172,6 +151,10 @@ pub fn run() {
             commands::project::detect_project_type,
             commands::project::batch_detect_types,
             commands::project::increment_project_hits,
+            commands::project::update_project_launcher,
+            commands::project::update_project_top,
+            commands::project::add_custom_project,
+            commands::project::remove_custom_project,
             // 启动器相关
             commands::launcher::launch_project,
             commands::launcher::get_launchers,
@@ -179,8 +162,6 @@ pub fn run() {
             commands::launcher::update_launcher,
             commands::launcher::remove_launcher,
             // 快捷键相关
-            commands::shortcut::register_global_shortcut,
-            commands::shortcut::unregister_global_shortcut,
             commands::shortcut::check_shortcut_conflict,
             commands::shortcut::register_launcher_shortcut,
             commands::shortcut::unregister_launcher_shortcut,
@@ -195,7 +176,40 @@ pub fn run() {
             commands::config::save_config,
             commands::config::set_autostart,
             commands::config::get_autostart_status,
+            // 导入导出相关
+            commands::export::export_settings,
+            commands::export::import_settings,
+            commands::export::preview_import,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        // 全局窗口事件处理：所有窗口关闭时隐藏而非关闭
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 隐藏窗口而不是关闭，保持应用在托盘运行
+                let _ = window.hide();
+                api.prevent_close();
+                println!("窗口 [{}] 关闭请求已拦截，已隐藏", window.label());
+
+                // macOS: 设置窗口关闭时切换回 Accessory 模式
+                #[cfg(target_os = "macos")]
+                if window.label() == "settings" {
+                    unsafe {
+                        let ns_app = NSApp();
+                        ns_app.setActivationPolicy_(NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory);
+                    }
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            match event {
+                // 始终阻止应用退出，只有托盘菜单的 std::process::exit(0) 才能真正退出
+                // 这确保了窗口关闭、Cmd+Q 等操作都不会导致应用退出
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    api.prevent_exit();
+                    println!("退出请求已阻止，应用继续在托盘运行");
+                }
+                _ => {}
+            }
+        });
 }

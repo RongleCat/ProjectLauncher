@@ -119,28 +119,28 @@ const handleSave = async (launcher: Partial<Launcher>) => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex shrink-0 items-center justify-between pb-4">
       <div>
         <h3 class="text-base font-medium">启动器管理</h3>
         <p class="text-sm text-muted-foreground">配置用于打开项目的应用程序</p>
       </div>
       <Button size="sm" @click="handleAdd">
-        <Plus class="mr-2 h-4 w-4" />
+        <Plus class="h-4 w-4" />
         添加启动器
       </Button>
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center py-12">
+    <div v-if="loading" class="flex flex-1 items-center justify-center">
       <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>
 
     <!-- Empty State -->
     <div
       v-else-if="launchers.length === 0"
-      class="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-12 text-center"
+      class="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center"
     >
       <Terminal class="h-10 w-10 text-muted-foreground/50" />
       <div>
@@ -150,57 +150,59 @@ const handleSave = async (launcher: Partial<Launcher>) => {
     </div>
 
     <!-- Launcher List -->
-    <div v-else class="space-y-3">
-      <div
-        v-for="launcher in launchers"
-        :key="launcher.id"
-        class="group rounded-lg border bg-card transition-colors hover:bg-muted/30"
-      >
-        <div class="flex items-start gap-4 p-4">
-          <!-- Icon -->
-          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Terminal v-if="launcher.is_command" class="h-5 w-5" />
-            <AppWindow v-else class="h-5 w-5" />
-          </div>
-
-          <!-- Content -->
-          <div class="min-w-0 flex-1 space-y-1">
-            <div class="flex items-center gap-2">
-              <h4 class="font-medium">{{ launcher.name }}</h4>
-              <span
-                class="rounded-full px-2 py-0.5 text-xs"
-                :class="launcher.is_command ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'"
-              >
-                {{ launcher.is_command ? '命令模式' : '应用模式' }}
-              </span>
+    <div v-else class="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div class="space-y-3">
+        <div
+          v-for="launcher in launchers"
+          :key="launcher.id"
+          class="group rounded-lg border bg-card transition-colors hover:bg-muted/30"
+        >
+          <div class="flex items-start gap-4 p-4">
+            <!-- Icon -->
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Terminal v-if="launcher.is_command" class="h-5 w-5" />
+              <AppWindow v-else class="h-5 w-5" />
             </div>
 
-            <p class="truncate text-sm text-muted-foreground">
-              {{ launcher.path || '未设置路径' }}
-            </p>
+            <!-- Content -->
+            <div class="min-w-0 flex-1 space-y-1">
+              <div class="flex items-center gap-2">
+                <h4 class="font-medium">{{ launcher.name }}</h4>
+                <span
+                  class="rounded-full px-2 py-0.5 text-xs"
+                  :class="launcher.is_command ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'"
+                >
+                  {{ launcher.is_command ? '命令模式' : '应用模式' }}
+                </span>
+              </div>
 
-            <div v-if="launcher.is_command && launcher.command" class="pt-1">
-              <code class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
-                {{ launcher.command }}
-              </code>
+              <p class="truncate text-sm text-muted-foreground">
+                {{ launcher.path || '未设置路径' }}
+              </p>
+
+              <div v-if="launcher.is_command && launcher.command" class="pt-1">
+                <code class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+                  {{ launcher.command }}
+                </code>
+              </div>
+
+              <div v-if="launcher.shortcut" class="flex items-center gap-1.5 pt-1">
+                <Keyboard class="h-3.5 w-3.5 text-muted-foreground" />
+                <span class="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium">
+                  {{ formatShortcut(launcher.shortcut) }}
+                </span>
+              </div>
             </div>
 
-            <div v-if="launcher.shortcut" class="flex items-center gap-1.5 pt-1">
-              <Keyboard class="h-3.5 w-3.5 text-muted-foreground" />
-              <span class="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium">
-                {{ formatShortcut(launcher.shortcut) }}
-              </span>
+            <!-- Actions -->
+            <div class="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <Button variant="ghost" size="icon" class="h-8 w-8" @click="handleEdit(launcher)">
+                <Pencil class="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" @click="handleDelete(launcher)">
+                <Trash2 class="h-4 w-4" />
+              </Button>
             </div>
-          </div>
-
-          <!-- Actions -->
-          <div class="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <Button variant="ghost" size="icon" class="h-8 w-8" @click="handleEdit(launcher)">
-              <Pencil class="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" @click="handleDelete(launcher)">
-              <Trash2 class="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </div>
