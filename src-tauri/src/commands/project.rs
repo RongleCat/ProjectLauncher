@@ -1,7 +1,8 @@
 use tauri::{Emitter, State};
 use std::sync::Mutex;
+use std::collections::HashMap;
 use crate::services::{scanner::ProjectScanner, cache_manager::CacheManager, type_detector::TypeDetector};
-use crate::models::{project::Project, config::Config};
+use crate::models::{project::{Project, VersionControl}, config::Config};
 
 pub struct AppState {
     pub cache_manager: Mutex<CacheManager>,
@@ -20,21 +21,47 @@ pub async fn get_cached_projects(state: State<'_, AppState>) -> Result<Vec<Proje
     }
 }
 
-/// 强制重新扫描项目
+/// 强制重新扫描项目（保留用户数据）
 #[tauri::command]
 pub async fn force_rescan(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
     let config = state.config.lock().unwrap().clone();
     let cache_manager = state.cache_manager.lock().unwrap();
 
+    // 加载旧缓存，创建 path -> 旧项目 的映射
+    let old_map: HashMap<String, Project> = cache_manager
+        .load_instant()
+        .ok()
+        .flatten()
+        .map(|c| c.projects)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| (p.path.clone(), p))
+        .collect();
+
     // 使用并行扫描
     let scanner = ProjectScanner::new(config.ignore_dirs);
-    let projects = scanner.scan_parallel(&config.workspaces);
+    let new_projects = scanner.scan_parallel(&config.workspaces);
+
+    // 合并：保留用户数据（hits, launcher_id, top, project_type, last_opened）
+    let merged: Vec<Project> = new_projects
+        .into_iter()
+        .map(|mut new| {
+            if let Some(old) = old_map.get(&new.path) {
+                new.hits = old.hits;
+                new.launcher_id = old.launcher_id.clone();
+                new.top = old.top;
+                new.project_type = old.project_type.clone();
+                new.last_opened = old.last_opened.clone();
+            }
+            new
+        })
+        .collect();
 
     // 保存到缓存
-    cache_manager.save(projects.clone())
+    cache_manager.save(merged.clone())
         .map_err(|e| e.to_string())?;
 
-    Ok(projects)
+    Ok(merged)
 }
 
 /// 检测单个项目类型
@@ -97,6 +124,147 @@ pub async fn increment_project_hits(
 
     cache_manager.save(projects)
         .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// 更新项目绑定的启动器
+#[tauri::command]
+pub async fn update_project_launcher(
+    state: State<'_, AppState>,
+    project_path: String,
+    launcher_id: Option<String>,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager.load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+    if let Some(project) = projects.iter_mut().find(|p| p.path == project_path) {
+        project.launcher_id = launcher_id;
+    } else {
+        return Err("项目不存在".to_string());
+    }
+
+    cache_manager.save(projects)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// 更新项目置顶状态
+#[tauri::command]
+pub async fn update_project_top(
+    state: State<'_, AppState>,
+    project_path: String,
+    top: bool,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager.load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+    if let Some(project) = projects.iter_mut().find(|p| p.path == project_path) {
+        project.top = top;
+    } else {
+        return Err("项目不存在".to_string());
+    }
+
+    cache_manager.save(projects)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// 手动添加自定义项目文件夹
+#[tauri::command]
+pub async fn add_custom_project(
+    state: State<'_, AppState>,
+    folder_path: String,
+) -> Result<Project, String> {
+    use std::path::Path;
+
+    let path = Path::new(&folder_path);
+
+    // 验证路径存在且为目录
+    if !path.exists() {
+        return Err("路径不存在".to_string());
+    }
+    if !path.is_dir() {
+        return Err("路径不是目录".to_string());
+    }
+
+    let cache_manager = state.cache_manager.lock().unwrap();
+
+    // 加载现有缓存
+    let mut projects = cache_manager
+        .load_instant()
+        .map_err(|e| e.to_string())?
+        .map(|c| c.projects)
+        .unwrap_or_default();
+
+    // 检查是否已存在
+    if projects.iter().any(|p| p.path == folder_path) {
+        return Err("项目已存在".to_string());
+    }
+
+    // 获取文件夹名称
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|s| s.to_string())
+        .ok_or("无法获取文件夹名称")?;
+
+    // 检测版本控制类型
+    let vc = if path.join(".git").exists() {
+        VersionControl::Git
+    } else if path.join(".svn").exists() {
+        VersionControl::Svn
+    } else if path.join(".hg").exists() {
+        VersionControl::Mercurial
+    } else {
+        VersionControl::None
+    };
+
+    // 检测项目类型
+    let project_type = TypeDetector::detect(&folder_path);
+
+    // 创建自定义项目
+    let mut project = Project::new(folder_path, name, vc);
+    project.is_custom = true;
+    project.project_type = project_type;
+
+    // 添加到缓存
+    projects.push(project.clone());
+    cache_manager.save(projects).map_err(|e| e.to_string())?;
+
+    Ok(project)
+}
+
+/// 删除自定义项目
+#[tauri::command]
+pub async fn remove_custom_project(
+    state: State<'_, AppState>,
+    project_path: String,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager
+        .load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+
+    // 查找并验证是自定义项目
+    let idx = projects
+        .iter()
+        .position(|p| p.path == project_path && p.is_custom)
+        .ok_or("项目不存在或非自定义项目")?;
+
+    projects.remove(idx);
+    cache_manager.save(projects).map_err(|e| e.to_string())?;
 
     Ok(())
 }
