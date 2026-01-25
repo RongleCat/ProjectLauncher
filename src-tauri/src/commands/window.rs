@@ -51,7 +51,7 @@ pub async fn show_settings_window(app: AppHandle) -> Result<(), String> {
         window.set_focus().map_err(|e| e.to_string())?;
     } else {
         // 创建设置窗口
-        let window = WebviewWindowBuilder::new(
+        let _window = WebviewWindowBuilder::new(
             &app,
             "settings",
             WebviewUrl::App("index.html#/settings".into())
@@ -64,19 +64,8 @@ pub async fn show_settings_window(app: AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-        // 注册关闭事件处理器（隐藏而不是关闭）
-        let window_clone = window.clone();
-        window.on_window_event(move |event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // 隐藏窗口而不是关闭
-                let _ = window_clone.hide();
-                api.prevent_close();
-
-                // macOS: 切换回 Accessory 模式，从 Dock 隐藏
-                #[cfg(target_os = "macos")]
-                set_activation_policy_accessory();
-            }
-        });
+        // 注意：窗口关闭事件由 lib.rs 的全局 on_window_event 处理
+        // 无需在此重复注册
     }
     Ok(())
 }
