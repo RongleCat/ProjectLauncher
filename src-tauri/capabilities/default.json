@@ -33,6 +33,17 @@
     "fs:default",
     "fs:allow-read",
     "fs:allow-write",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "$DOWNLOAD/*",
+        "$DOCUMENT/*",
+        "$DESKTOP/*",
+        "$HOME/*"
+      ]
+    },
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
