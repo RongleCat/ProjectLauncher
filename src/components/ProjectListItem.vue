@@ -2,6 +2,9 @@
 import type { Project } from '@/types'
 import { useLauncherStore } from '@/store'
 import { computed } from 'vue'
+import ProjectTypeIcon from './ProjectTypeIcon.vue'
+import VcsIcon from './VcsIcon.vue'
+import { Pin } from 'lucide-vue-next'
 
 interface Props {
   project: Project
@@ -10,42 +13,33 @@ interface Props {
 const props = defineProps<Props>()
 const launcherStore = useLauncherStore()
 
-const getTypeIcon = (type?: string) => {
-  if (!type) return '/icons/unknown.svg'
-  return `/icons/${type}.svg`
-}
-
 const launcherInfo = computed(() => {
   if (!props.project.launcher_id) return null
   return launcherStore.getLauncherById(props.project.launcher_id)
-})
-
-const versionControlIcon = computed(() => {
-  const vcMap: Record<string, string> = {
-    Git: '🔷',
-    Svn: '🟠',
-    Mercurial: '🔶',
-    None: '📁',
-  }
-  return vcMap[props.project.version_control] || '📁'
 })
 </script>
 
 <template>
   <div class="project-item">
-    <!-- 项目类型图标 -->
+    <!-- 项目类型图标（左侧） -->
     <div class="type-icon">
-      <span class="text-2xl">{{ versionControlIcon }}</span>
+      <ProjectTypeIcon :type="project.project_type" :is-custom="project.is_custom" :size="28" />
     </div>
 
     <!-- 项目信息 -->
     <div class="project-info">
-      <div class="project-name">{{ project.name }}</div>
+      <div class="project-name">
+        <span class="name-text">{{ project.name }}</span>
+        <!-- 置顶图标 -->
+        <Pin v-if="project.top" :size="14" class="pin-icon" />
+        <!-- VCS 图标（名称后） -->
+        <VcsIcon :type="project.version_control" :size="14" class="vcs-badge" />
+      </div>
       <div class="project-path">{{ project.path }}</div>
     </div>
 
-    <!-- 启动器图标 -->
-    <div v-if="launcherInfo" class="launcher-icon" :title="launcherInfo.name">
+    <!-- 启动器名称 -->
+    <div v-if="launcherInfo" class="launcher-info" :title="launcherInfo.name">
       <span class="text-sm text-muted-foreground">{{ launcherInfo.name }}</span>
     </div>
 
@@ -63,7 +57,7 @@ const versionControlIcon = computed(() => {
   gap: 12px;
   width: 100%;
   padding: 8px;
-  min-height: 60px;
+  min-height: 56px;
 }
 
 .type-icon {
@@ -84,11 +78,27 @@ const versionControlIcon = computed(() => {
 }
 
 .project-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 500;
+}
+
+.name-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.pin-icon {
+  flex-shrink: 0;
+  color: hsl(var(--color-primary));
+}
+
+.vcs-badge {
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .project-path {
@@ -99,7 +109,7 @@ const versionControlIcon = computed(() => {
   text-overflow: ellipsis;
 }
 
-.launcher-icon {
+.launcher-info {
   flex-shrink: 0;
   margin-left: auto;
 }

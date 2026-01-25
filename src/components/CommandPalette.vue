@@ -1,22 +1,28 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import type { Project } from '@/types'
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command'
+import { RotateCw } from 'lucide-vue-next'
+import { Command, CommandInput, CommandList, CommandGroup, CommandItem } from '@/components/ui/command'
 import ProjectListItem from './ProjectListItem.vue'
 
 interface Props {
   search: string
   projects: Project[]
   loading: boolean
+  // 菜单是否打开（打开时不处理键盘事件）
+  menuOpen?: boolean
 }
 
 interface Emits {
   (e: 'update:search', value: string): void
   (e: 'select', project: Project): void
   (e: 'refresh'): void
+  (e: 'contextmenu', event: MouseEvent | null, project: Project): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  menuOpen: false,
+})
 const emit = defineEmits<Emits>()
 
 // 自定义选中索引
@@ -53,8 +59,8 @@ watch(() => props.projects, (newProjects) => {
   }
 })
 
-const handleInput = (value: string | number) => {
-  emit('update:search', String(value))
+const handleInput = (value: string) => {
+  emit('update:search', value)
 }
 
 const handleSelect = (project: Project) => {
@@ -76,6 +82,11 @@ const scrollToSelected = () => {
 
 // 键盘导航处理
 const handleKeydown = (event: KeyboardEvent) => {
+  // 如果菜单打开，不处理键盘事件（由菜单组件处理）
+  if (props.menuOpen) {
+    return
+  }
+
   const { key } = event
 
   if (key === 'ArrowDown') {
@@ -91,6 +102,14 @@ const handleKeydown = (event: KeyboardEvent) => {
     if (props.projects.length > 0 && selectedIndex.value > 0) {
       selectedIndex.value--
       scrollToSelected()
+    }
+  } else if (key === 'ArrowRight') {
+    // 右方向键打开右键菜单
+    event.preventDefault()
+    event.stopPropagation()
+    const project = props.projects[selectedIndex.value]
+    if (project) {
+      emit('contextmenu', null, project)
     }
   } else if (key === 'Enter') {
     // 忽略 IME 输入法组合状态下的回车键
@@ -118,6 +137,13 @@ const handleItemClick = (project: Project, index: number) => {
   handleSelect(project)
 }
 
+// 右键菜单
+const handleContextMenu = (event: MouseEvent, project: Project, index: number) => {
+  event.preventDefault()
+  selectedIndex.value = index
+  emit('contextmenu', event, project)
+}
+
 // 判断是否为选中项
 const isSelected = (index: number) => index === selectedIndex.value
 </script>
@@ -125,6 +151,7 @@ const isSelected = (index: number) => index === selectedIndex.value
 <template>
   <div
     ref="listRef"
+    class="w-full"
     @keydown.capture="handleKeydown"
     @compositionstart.capture="handleCompositionStart"
     @compositionend.capture="handleCompositionEnd"
@@ -134,16 +161,33 @@ const isSelected = (index: number) => index === selectedIndex.value
         :model-value="search"
         placeholder="搜索项目..."
         @update:model-value="handleInput"
-      />
+      >
+        <template #right>
+          <button
+            v-if="search"
+            type="button"
+            class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="重新扫描项目 (⌘R)"
+            @click.stop="emit('refresh')"
+          >
+            <RotateCw class="w-4 h-4" />
+          </button>
+        </template>
+      </CommandInput>
 
       <CommandList>
-        <CommandEmpty>
-          <div class="py-6">
-            {{ loading ? '加载中...' : '未找到项目' }}
-          </div>
-        </CommandEmpty>
+        <!-- 加载中 -->
+        <div v-if="loading" class="py-6 text-center text-sm text-muted-foreground">
+          加载中...
+        </div>
 
-        <CommandGroup v-if="!loading && projects.length > 0">
+        <!-- 空状态 -->
+        <div v-else-if="projects.length === 0" class="py-6 text-center text-sm text-muted-foreground">
+          未找到项目
+        </div>
+
+        <!-- 项目列表 -->
+        <CommandGroup v-else>
           <CommandItem
             v-for="(project, index) in projects"
             :key="project.path"
@@ -151,6 +195,7 @@ const isSelected = (index: number) => index === selectedIndex.value
             class="cursor-pointer"
             :class="{ 'bg-accent text-accent-foreground': isSelected(index) }"
             @click="handleItemClick(project, index)"
+            @contextmenu="handleContextMenu($event, project, index)"
           >
             <ProjectListItem :project="project" />
           </CommandItem>
