@@ -11,6 +11,8 @@ interface Props {
   loading: boolean
   // 菜单是否打开（打开时不处理键盘事件）
   menuOpen?: boolean
+  // 当前激活的启动器名称（快捷键触发时显示）
+  activeLauncherName?: string
 }
 
 interface Emits {
@@ -163,6 +165,12 @@ const isSelected = (index: number) => index === selectedIndex.value
         @update:model-value="handleInput"
       >
         <template #right>
+          <span
+            v-if="props.activeLauncherName"
+            class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded mr-1"
+          >
+            {{ props.activeLauncherName }}
+          </span>
           <button
             v-if="search"
             type="button"

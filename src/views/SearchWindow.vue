@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore, useLauncherStore } from '@/store'
 import { useSearch } from '@/composables/useSearch'
@@ -22,6 +22,11 @@ const { searchQuery, filteredProjects } = useSearch(sortedProjects)
 
 // 快捷键激活的启动器 ID（优先级高于项目默认启动器）
 const activeLauncherId = ref<string | null>(null)
+// 当前激活的启动器名称（用于 UI 展示）
+const activeLauncherName = computed(() => {
+  if (!activeLauncherId.value) return undefined
+  return launchers.value.find(l => l.id === activeLauncherId.value)?.name
+})
 // 刷新确认弹窗状态
 const showRefreshConfirm = ref(false)
 // 右键菜单状态
@@ -353,6 +358,7 @@ onUnmounted(() => {
         :projects="filteredProjects"
         :loading="loading"
         :menu-open="contextMenuVisible"
+        :active-launcher-name="activeLauncherName"
         @select="handleSelectProject"
         @refresh="handleRefresh"
         @contextmenu="handleContextMenu"
