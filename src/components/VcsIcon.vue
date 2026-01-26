@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Icon } from '@iconify/vue'
 import { VERSION_CONTROL_ICONS, type VersionControl } from '@/types'
 
 const props = withDefaults(
@@ -12,25 +13,19 @@ const props = withDefaults(
   }
 )
 
-// Devicon CDN 基础 URL
-const DEVICON_CDN = 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons'
-
-// 获取图标 URL
-const iconUrl = computed(() => {
-  const iconName = VERSION_CONTROL_ICONS[props.type]
-  if (!iconName) return null
-  return `${DEVICON_CDN}/${iconName}/${iconName}-original.svg`
+// 获取 Iconify 图标名称
+const iconName = computed(() => {
+  return VERSION_CONTROL_ICONS[props.type] || null
 })
 
 // 是否显示图标
-const showIcon = computed(() => props.type !== 'None' && iconUrl.value)
+const showIcon = computed(() => props.type !== 'None' && iconName.value)
 </script>
 
 <template>
-  <img
+  <Icon
     v-if="showIcon"
-    :src="iconUrl!"
-    :alt="type"
+    :icon="iconName!"
     :width="size"
     :height="size"
     class="vcs-icon"

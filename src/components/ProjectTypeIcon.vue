@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Icon } from '@iconify/vue'
 import { PROJECT_TYPE_ICONS } from '@/types'
 import { FolderCode, Folder } from 'lucide-vue-next'
 
@@ -18,14 +19,15 @@ const props = withDefaults(
   }
 )
 
-// Devicon CDN 基础 URL
-const DEVICON_CDN = 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons'
-
-// 获取图标 URL
-const iconUrl = computed(() => {
-  const iconName = PROJECT_TYPE_ICONS[props.type || 'unknown'] || 'devicon'
-  const variant = props.colored ? 'original' : 'plain'
-  return `${DEVICON_CDN}/${iconName}/${iconName}-${variant}.svg`
+// 获取 Iconify 图标名称
+const iconName = computed(() => {
+  const baseIcon = PROJECT_TYPE_ICONS[props.type || 'unknown'] || PROJECT_TYPE_ICONS.unknown
+  // 根据 colored 属性选择图标变体
+  if (!props.colored && !baseIcon.includes('-plain')) {
+    // 尝试使用 plain 变体（如果存在）
+    return baseIcon.replace('-original', '-plain')
+  }
+  return baseIcon
 })
 
 // 是否显示自定义文件夹图标
@@ -55,15 +57,13 @@ const showTypeIcon = computed(() => !props.isCustom && props.type && props.type 
       :size="size"
       class="text-muted-foreground"
     />
-    <!-- 已知项目类型：显示 Devicon 图标 -->
-    <img
+    <!-- 已知项目类型：显示 Iconify 图标 -->
+    <Icon
       v-else-if="showTypeIcon"
-      :src="iconUrl"
-      :alt="type || 'unknown'"
+      :icon="iconName"
       :width="size"
       :height="size"
       class="project-type-img"
-      @error="($event.target as HTMLImageElement).style.display = 'none'"
     />
   </div>
 </template>

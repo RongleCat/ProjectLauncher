@@ -44,6 +44,7 @@ export type Platform = 'darwin' | 'win32' | 'linux'
 
 // 项目类型枚举
 export type ProjectType =
+  // 原有类型
   | 'rust'
   | 'vue'
   | 'react'
@@ -62,36 +63,84 @@ export type ProjectType =
   | 'hexo'
   | 'maven'
   | 'gradle'
+  // 新增类型
+  | 'tauri'
+  | 'svelte'
+  | 'angular'
+  | 'astro'
+  | 'nest'
+  | 'deno'
+  | 'bun'
+  | 'ruby'
+  | 'rails'
+  | 'php'
+  | 'laravel'
+  | 'dotnet'
+  | 'cpp'
+  | 'c'
+  | 'kotlin'
+  | 'scala'
+  | 'elixir'
+  | 'haskell'
+  | 'lua'
+  | 'zig'
+  | 'docker'
   | 'unknown'
 
-// Devicon 图标映射（项目类型 -> Devicon 图标名称）
+// Devicon 图标映射（项目类型 -> Iconify 图标名称）
 export const PROJECT_TYPE_ICONS: Record<string, string> = {
-  rust: 'rust',
-  vue: 'vuejs',
-  react: 'react',
-  react_ts: 'react',
-  nextjs: 'nextjs',
-  nuxt: 'nuxtjs',
-  typescript: 'typescript',
-  javascript: 'javascript',
-  python: 'python',
-  go: 'go',
-  dart: 'flutter',
-  android: 'android',
-  xcode: 'apple',
-  electron: 'electron',
-  vite: 'vitejs',
-  hexo: 'nodejs',
-  maven: 'maven',
-  gradle: 'gradle',
-  unknown: 'devicon',
+  // 原有类型
+  rust: 'devicon:rust',
+  vue: 'devicon:vuejs',
+  react: 'devicon:react',
+  react_ts: 'devicon:react',
+  nextjs: 'devicon:nextjs',
+  nuxt: 'devicon:nuxtjs',
+  typescript: 'devicon:typescript',
+  javascript: 'devicon:javascript',
+  python: 'devicon:python',
+  go: 'devicon:go',
+  dart: 'devicon:flutter',
+  android: 'devicon:android',
+  xcode: 'devicon:apple',
+  electron: 'devicon:electron',
+  vite: 'devicon:vitejs',
+  hexo: 'devicon:hexo',
+  maven: 'devicon:maven',
+  gradle: 'devicon:gradle',
+
+  // 新增类型
+  tauri: 'devicon:tauri',
+  svelte: 'devicon:svelte',
+  angular: 'devicon:angular',
+  astro: 'devicon:astro',
+  nest: 'devicon:nestjs',
+  deno: 'devicon:denojs',
+  bun: 'devicon:bun',
+  ruby: 'devicon:ruby',
+  rails: 'devicon:rails',
+  php: 'devicon:php',
+  laravel: 'devicon:laravel',
+  dotnet: 'devicon:dotnetcore',
+  cpp: 'devicon:cplusplus',
+  c: 'devicon:c',
+  kotlin: 'devicon:kotlin',
+  scala: 'devicon:scala',
+  elixir: 'devicon:elixir',
+  haskell: 'devicon:haskell',
+  lua: 'devicon:lua',
+  zig: 'devicon:zig',
+  docker: 'devicon:docker',
+
+  // fallback
+  unknown: 'devicon:devicon',
 }
 
-// 版本控制图标映射
+// 版本控制图标映射（使用 Iconify 格式）
 export const VERSION_CONTROL_ICONS: Record<VersionControl, string> = {
-  Git: 'git',
-  Svn: 'subversion',
-  Mercurial: 'mercurial',
+  Git: 'devicon:git',
+  Svn: 'devicon:subversion',
+  Mercurial: 'devicon:tortoisegit', // Mercurial 没有专门图标，使用近似
   None: '',
 }
 
