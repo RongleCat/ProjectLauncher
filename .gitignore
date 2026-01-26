@@ -27,3 +27,4 @@ LOCAL_NOTES.md
 target/
 docs
 .zcf
+.spec-workflow
