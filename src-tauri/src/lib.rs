@@ -104,8 +104,25 @@ pub fn run() {
                 .item(&MenuItemBuilder::with_id("quit", "退出").build(app)?)
                 .build()?;
 
-            let _ = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+            // Build tray icon with platform-specific settings
+            let mut tray_builder = TrayIconBuilder::new();
+
+            #[cfg(target_os = "macos")]
+            {
+                // macOS: Use template icon for system theme adaptation (light/dark mode)
+                let tray_icon_path = app.path().resolve("icons/tray-icon.png", tauri::path::BaseDirectory::Resource)?;
+                tray_builder = tray_builder
+                    .icon(tauri::image::Image::from_path(tray_icon_path)?)
+                    .icon_as_template(true);
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                // Windows/Linux: Use default app icon
+                tray_builder = tray_builder.icon(app.default_window_icon().unwrap().clone());
+            }
+
+            let _ = tray_builder
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
