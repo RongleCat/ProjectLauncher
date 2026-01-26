@@ -18,6 +18,8 @@
     "check": "cargo check --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
+    "@iconify-json/devicon": "^1.2.57",
+    "@iconify/vue": "^5.0.0",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
