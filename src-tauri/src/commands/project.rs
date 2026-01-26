@@ -1,4 +1,4 @@
-use tauri::{Emitter, State};
+use tauri::{AppHandle, Emitter, State};
 use std::sync::Mutex;
 use std::collections::HashMap;
 use crate::services::{scanner::ProjectScanner, cache_manager::CacheManager, type_detector::TypeDetector};
@@ -154,6 +154,7 @@ pub async fn increment_project_hits(
 #[tauri::command]
 pub async fn update_project_launcher(
     state: State<'_, AppState>,
+    app: AppHandle,
     project_path: String,
     launcher_id: Option<String>,
 ) -> Result<(), String> {
@@ -172,6 +173,9 @@ pub async fn update_project_launcher(
     cache_manager.save(projects)
         .map_err(|e| e.to_string())?;
 
+    // 通知所有窗口项目列表已更新
+    let _ = app.emit("projects-updated", ());
+
     Ok(())
 }
 
@@ -179,6 +183,7 @@ pub async fn update_project_launcher(
 #[tauri::command]
 pub async fn update_project_top(
     state: State<'_, AppState>,
+    app: AppHandle,
     project_path: String,
     top: bool,
 ) -> Result<(), String> {
@@ -196,6 +201,9 @@ pub async fn update_project_top(
 
     cache_manager.save(projects)
         .map_err(|e| e.to_string())?;
+
+    // 通知所有窗口项目列表已更新
+    let _ = app.emit("projects-updated", ());
 
     Ok(())
 }
@@ -294,6 +302,61 @@ pub async fn remove_custom_project(
     cache_manager.save(projects).map_err(|e| e.to_string())?;
 
     // 广播项目更新事件
+    let _ = app.emit("projects-updated", ());
+
+    Ok(())
+}
+
+/// 重置单个项目的打开次数
+#[tauri::command]
+pub async fn reset_project_hits(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    project_path: String,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager
+        .load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+    if let Some(project) = projects.iter_mut().find(|p| p.path == project_path) {
+        project.hits = 0;
+        project.last_opened = None;
+    } else {
+        return Err("项目不存在".to_string());
+    }
+
+    cache_manager.save(projects).map_err(|e| e.to_string())?;
+
+    // 通知所有窗口项目列表已更新
+    let _ = app.emit("projects-updated", ());
+
+    Ok(())
+}
+
+/// 重置所有项目的打开次数
+#[tauri::command]
+pub async fn reset_all_project_hits(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager
+        .load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+    for project in projects.iter_mut() {
+        project.hits = 0;
+        project.last_opened = None;
+    }
+
+    cache_manager.save(projects).map_err(|e| e.to_string())?;
+
+    // 通知所有窗口项目列表已更新
     let _ = app.emit("projects-updated", ());
 
     Ok(())

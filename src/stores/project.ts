@@ -256,5 +256,34 @@ export const useProjectStore = defineStore('project', {
         throw error
       }
     },
+
+    // 重置单个项目打开次数
+    async resetProjectHits(projectPath: string) {
+      try {
+        await invoke('reset_project_hits', { projectPath })
+        const project = this.projects.find((p) => p.path === projectPath)
+        if (project) {
+          project.hits = 0
+          project.last_opened = undefined
+        }
+      } catch (error) {
+        console.error('重置项目打开次数失败:', error)
+        throw error
+      }
+    },
+
+    // 重置所有项目打开次数
+    async resetAllProjectHits() {
+      try {
+        await invoke('reset_all_project_hits')
+        for (const project of this.projects) {
+          project.hits = 0
+          project.last_opened = undefined
+        }
+      } catch (error) {
+        console.error('重置所有项目打开次数失败:', error)
+        throw error
+      }
+    },
   },
 })

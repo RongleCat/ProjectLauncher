@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useProjectStore } from '@/stores/project'
 import { useLauncherStore } from '@/stores/launcher'
+import { useConfirm } from '@/composables/useConfirm'
 import type { Project, VersionControl } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import ProjectTypeIcon from '@/components/ProjectTypeIcon.vue'
 import VcsIcon from '@/components/VcsIcon.vue'
 import ProjectDialog from './ProjectDialog.vue'
@@ -27,6 +29,7 @@ import {
   Rocket,
   Settings2,
   X,
+  RotateCcw,
 } from 'lucide-vue-next'
 
 interface Props {
@@ -39,6 +42,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const projectStore = useProjectStore()
 const launcherStore = useLauncherStore()
+const { confirm, isOpen, options, handleConfirm, handleCancel, handleOpenChange } = useConfirm()
 
 const {
   filteredProjects,
@@ -184,6 +188,43 @@ const handleSaveProject = async (data: { launcherId: string | null; top: boolean
   }
 }
 
+// 处理重置单个项目打开次数
+const handleResetHits = async (project: Project) => {
+  const confirmed = await confirm({
+    title: '清除打开次数',
+    description: `确定要清除项目 "${project.name}" 的打开次数吗？`,
+    confirmText: '清除',
+    variant: 'destructive',
+  })
+  if (!confirmed) return
+
+  try {
+    await projectStore.resetProjectHits(project.path)
+    emit('message', 'success', '已清除打开次数')
+  } catch {
+    emit('message', 'error', '清除失败')
+  }
+}
+
+// 处理重置所有项目打开次数
+const handleResetAllHits = async () => {
+  const count = projectStore.projects.length
+  const confirmed = await confirm({
+    title: '清除所有打开次数',
+    description: `确定要清除所有 ${count} 个项目的打开次数吗？此操作不可恢复。`,
+    confirmText: '全部清除',
+    variant: 'destructive',
+  })
+  if (!confirmed) return
+
+  try {
+    await projectStore.resetAllProjectHits()
+    emit('message', 'success', '已清除所有项目的打开次数')
+  } catch {
+    emit('message', 'error', '清除失败')
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     projectStore.loadProjects(),
@@ -264,6 +305,15 @@ const handleNavigateToProject = (targetPath: string) => {
         >
           <Sparkles class="h-4 w-4" />
           检测类型
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading"
+          @click="handleResetAllHits"
+        >
+          <RotateCcw class="h-4 w-4" />
+          清除统计
         </Button>
         <Button
           variant="outline"
@@ -390,9 +440,22 @@ const handleNavigateToProject = (targetPath: string) => {
           </div>
 
           <!-- 打开次数 -->
-          <span class="text-xs text-muted-foreground tabular-nums">
-            {{ project.hits }} 次
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-muted-foreground tabular-nums">
+              {{ project.hits }} 次
+            </span>
+            <!-- 清除打开次数按钮 -->
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+              :disabled="project.hits === 0"
+              title="清除打开次数"
+              @click="handleResetHits(project)"
+            >
+              <RotateCcw class="h-3.5 w-3.5" />
+            </Button>
+          </div>
 
           <!-- 编辑按钮 -->
           <Button
@@ -414,6 +477,19 @@ const handleNavigateToProject = (targetPath: string) => {
       :launchers="launchers"
       @update:open="dialogOpen = $event"
       @save="handleSaveProject"
+    />
+
+    <!-- Confirm Dialog -->
+    <ConfirmDialog
+      :open="isOpen"
+      :title="options.title"
+      :description="options.description"
+      :confirm-text="options.confirmText"
+      :cancel-text="options.cancelText"
+      :variant="options.variant"
+      @update:open="handleOpenChange"
+      @confirm="handleConfirm"
+      @cancel="handleCancel"
     />
   </div>
 </template>
