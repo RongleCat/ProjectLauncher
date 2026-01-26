@@ -20,17 +20,20 @@ export interface Launcher {
   shortcut?: string | null
 }
 
+// 项目列表排序方式
+export type ProjectSortBy = 'hits' | 'last_opened' | 'name'
+
+// 主题模式
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 export interface Config {
   workspaces: string[]
   ignore_dirs: string[]
   launchers: Launcher[]
   autostart: boolean
-  theme: string
+  theme: ThemeMode
   project_sort_by: ProjectSortBy
 }
-
-// 项目列表排序方式
-export type ProjectSortBy = 'hits' | 'last_opened' | 'name'
 
 export interface CacheData {
   projects: Project[]

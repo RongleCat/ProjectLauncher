@@ -14,7 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2, FolderOpen } from 'lucide-vue-next'
-import type { ProjectSortBy } from '@/types'
+import { IconThemeSystem, IconThemeLight, IconThemeDark } from '@/components/icons'
+import type { ProjectSortBy, ThemeMode } from '@/types'
+import type { Component } from 'vue'
 
 const settingsStore = useSettingsStore()
 const { config } = storeToRefs(settingsStore)
@@ -23,12 +25,29 @@ const emit = defineEmits<{
   (e: 'message', type: 'success' | 'error', text: string): void
 }>()
 
+// 主题选项
+const themeOptions: { value: ThemeMode; label: string; icon: Component }[] = [
+  { value: 'system', label: '自动', icon: IconThemeSystem },
+  { value: 'light', label: '浅色', icon: IconThemeLight },
+  { value: 'dark', label: '深色', icon: IconThemeDark },
+]
+
 // 排序选项
 const sortOptions: { value: ProjectSortBy; label: string; description: string }[] = [
   { value: 'hits', label: '打开次数', description: '按打开次数降序，相同则按名称排序' },
   { value: 'last_opened', label: '最近打开', description: '按上一次打开时间降序' },
   { value: 'name', label: '名称排序', description: '完全按项目名称字母排序' },
 ]
+
+const handleThemeChange = async (value: ThemeMode) => {
+  try {
+    await settingsStore.setTheme(value)
+    emit('message', 'success', '主题已更新')
+  } catch (error) {
+    console.error('设置主题失败:', error)
+    emit('message', 'error', '设置主题失败')
+  }
+}
 
 const handleSortChange = async (value: string) => {
   try {
@@ -104,6 +123,37 @@ const handleAutostartChange = async (checked: boolean) => {
           :checked="config.autostart"
           @update:checked="handleAutostartChange"
         />
+      </div>
+    </section>
+
+    <Separator />
+
+    <!-- 外观主题 -->
+    <section class="space-y-4">
+      <div>
+        <h3 class="text-base font-medium">外观主题</h3>
+        <p class="text-sm text-muted-foreground">设置应用程序的外观主题</p>
+      </div>
+      <div class="flex items-center justify-between rounded-lg border p-4">
+        <Label class="text-sm font-medium">主题模式</Label>
+        <!-- 分段器 -->
+        <div class="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            type="button"
+            class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all"
+            :class="
+              config.theme === opt.value
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            @click="handleThemeChange(opt.value)"
+          >
+            <component :is="opt.icon" class="h-4 w-4" />
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
       </div>
     </section>
 

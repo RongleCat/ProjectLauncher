@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { useStore, useProjectStore } from './store'
+import { useStore, useProjectStore, useSettingsStore } from './store'
 import SearchWindow from './views/SearchWindow.vue'
 import SettingsWindow from './views/SettingsWindow.vue'
 
 const store = useStore()
 const projectStore = useProjectStore()
+const settingsStore = useSettingsStore()
 const currentView = ref<'search' | 'settings'>('search')
 
 let unlistenRefresh: UnlistenFn | null = null
@@ -23,6 +24,10 @@ const getCurrentView = () => {
 onMounted(async () => {
   currentView.value = getCurrentView()
   await store.initApp()
+
+  // 加载配置并应用主题
+  await settingsStore.loadConfig()
+  settingsStore.applyTheme(settingsStore.config.theme)
 
   // 监听托盘菜单的刷新事件
   unlistenRefresh = await listen('refresh-projects', async () => {

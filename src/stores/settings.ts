@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import type { Config, ProjectSortBy } from '@/types'
+import type { Config, ProjectSortBy, ThemeMode } from '@/types'
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
@@ -9,7 +9,7 @@ export const useSettingsStore = defineStore('settings', {
       ignore_dirs: ['node_modules', 'dist', 'build', 'target'],
       launchers: [],
       autostart: false,
-      theme: 'light',
+      theme: 'system' as ThemeMode,
       project_sort_by: 'hits' as ProjectSortBy,
     } as Config,
     loading: false,
@@ -38,6 +38,20 @@ export const useSettingsStore = defineStore('settings', {
         console.error('保存配置失败:', error)
         throw error
       }
+    },
+
+    applyTheme(theme: ThemeMode) {
+      const html = document.documentElement
+      html.classList.remove('light', 'dark')
+      if (theme !== 'system') {
+        html.classList.add(theme)
+      }
+    },
+
+    async setTheme(theme: ThemeMode) {
+      this.config.theme = theme
+      this.applyTheme(theme)
+      await this.saveConfig()
     },
 
     async setProjectSortBy(sortBy: ProjectSortBy) {
