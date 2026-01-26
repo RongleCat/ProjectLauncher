@@ -167,7 +167,7 @@ const isSelected = (index: number) => index === selectedIndex.value
         <template #right>
           <span
             v-if="props.activeLauncherName"
-            class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded mr-1"
+            class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded mr-1 whitespace-nowrap"
           >
             {{ props.activeLauncherName }}
           </span>

@@ -215,7 +215,7 @@ const handleClose = () => {
 
 <template>
   <Dialog :open="open" @update:open="handleClose">
-    <DialogContent class="max-w-md">
+    <DialogContent class="max-w-lg">
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>
@@ -244,7 +244,7 @@ const handleClose = () => {
               :model-value="selectedPreset"
               @update:model-value="handlePresetSelect"
             >
-              <SelectTrigger class="w-[140px]">
+              <SelectTrigger class="w-[180px] shrink-0">
                 <SelectValue placeholder="快捷选择" />
               </SelectTrigger>
               <SelectContent>
@@ -253,7 +253,7 @@ const handleClose = () => {
                   :key="preset.id"
                   :value="preset.id"
                 >
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 whitespace-nowrap">
                     <component
                       :is="iconComponents[preset.icon as keyof typeof iconComponents]"
                       class="h-4 w-4"
