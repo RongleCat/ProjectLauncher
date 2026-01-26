@@ -1,204 +1,84 @@
 # Project Launcher
 
-一个基于 Tauri 2 的高性能项目启动器，支持快速搜索和启动本地项目。
+一个高性能的本地项目启动器，帮助你快速搜索并打开本地代码项目。
 
-![Screenshot](./public/v2_screenshot.webp)
+## 核心特性
 
-## ✨ 核心特性
+- 🚀 **高性能扫描** - 并行扫描，10000+ 项目秒级完成
+- 🔍 **智能搜索** - 模糊匹配，实时过滤
+- ⚡ **全局快捷键** - 随时唤醒，即搜即用
+- 🎯 **智能排序** - 基于使用频率自动排序
+- 🔧 **多启动器** - 支持配置多种编辑器/IDE
+- 🌙 **系统集成** - 托盘常驻、开机自启
+- 💻 **跨平台** - Windows / macOS
 
-- 🚀 **高性能扫描** - Rust 并行扫描，10000+ 项目 <2秒
-- 🔍 **智能搜索** - Raycast 风格搜索框，模糊匹配
-- ⚡ **全局快捷键** - 可自定义快捷键快速唤醒
-- 🎯 **智能缓存** - 启动即用，手动刷新
-- 🎨 **现代 UI** - shadcn-vue + Tailwind CSS 4
-- 🔧 **启动器管理** - 支持多种编辑器/IDE 配置
-- 📊 **使用统计** - 自动记录打开次数，智能排序
-- 💻 **跨平台** - Windows + macOS 支持
-- 🌙 **系统集成** - 托盘图标、开机启动
+## 安装
 
-## 技术栈
+从 [Releases](../../releases) 页面下载对应平台的安装包：
 
-### 前端
-- **Vue 3** - Composition API
-- **TypeScript** - 类型安全
-- **Pinia** - 状态管理
-- **shadcn-vue** - UI 组件库
-- **Tailwind CSS 4** - 样式框架
-- **Fuse.js** - 模糊搜索
+- **Windows**: `.msi` 或 `.exe`
+- **macOS**: `.dmg`
 
-### 后端 (Rust)
-- **Tauri 2** - 桌面应用框架
-- **rayon** - 并行计算
-- **walkdir** - 目录遍历
-- **serde** - 序列化
-- **chrono** - 时间处理
+## 使用方法
 
-## 开发环境要求
+### 快速开始
 
-### 系统要求
-- **Windows**: Windows 10/11 + Visual Studio 2022 (C++ 构建工具)
-- **macOS**: macOS 10.15+ + Xcode Command Line Tools
-- **Linux**: 参考 [Tauri 先决条件](https://tauri.app/start/prerequisites/)
+1. 安装并启动应用，图标会出现在系统托盘
+2. 在设置中配置启动器并设置快捷键
+3. 按快捷键唤醒搜索框，输入项目名称进行搜索
+4. 按 `Enter` 或点击项目使用对应启动器打开
 
-### 开发工具
-- Node.js 18+
-- pnpm 8+
-- Rust 1.70+
+### 搜索窗口
 
-## 快速开始
+| 操作     | 快捷键        |
+| -------- | ------------- |
+| 上下选择 | `↑` / `↓`     |
+| 打开项目 | `Enter`       |
+| 快捷菜单 | `→` / 右键    |
+| 关闭窗口 | `Esc`         |
 
-### 1. 克隆项目
+### 配置设置
 
-```bash
-git clone <repository-url>
-cd tauri-project-launcher
-```
+右键点击托盘图标，选择「设置」进入配置界面。
 
-### 2. 安装依赖
+#### 工作区管理
 
-```bash
-# 安装前端依赖
-pnpm install
+添加你的代码目录，应用会自动扫描其中的项目（支持 Git / SVN / Mercurial 仓库识别）。
 
-# 安装 Rust 依赖（自动）
-cd src-tauri && cargo check
-```
+#### 启动器管理
 
-### 3. 运行开发服务器
+配置你常用的编辑器或 IDE：
 
-```bash
-pnpm tauri dev
-```
+- VS Code、Cursor、WebStorm 等主流编辑器
+- 支持自定义启动命令
+- 可设置默认启动器
 
-这将同时启动前端开发服务器和 Tauri 应用。
+#### 快捷键设置
 
-### 4. 构建生产版本
+自定义全局唤醒快捷键，支持冲突检测。
 
-```bash
-pnpm tauri build
-```
+#### 其他设置
 
-构建产物位于 `src-tauri/target/release/bundle/`。
+- 开机自启
+- 项目扫描深度
+- 外观主题
 
-## 项目结构
+### 托盘菜单
 
-```
-tauri-project-launcher/
-├── src/                          # 前端源码
-│   ├── components/
-│   │   ├── ui/                   # shadcn-vue 组件
-│   │   ├── CommandPalette.vue    # 搜索面板
-│   │   └── ProjectListItem.vue   # 项目列表项
-│   ├── views/
-│   │   ├── SearchWindow.vue      # 主搜索窗口
-│   │   └── SettingsWindow.vue    # 设置窗口
-│   ├── stores/                   # Pinia 状态管理
-│   ├── composables/              # 组合式函数
-│   ├── types/                    # TypeScript 类型
-│   └── assets/                   # 静态资源
-├── src-tauri/                    # Rust 后端
-│   ├── src/
-│   │   ├── models/               # 数据模型
-│   │   ├── services/             # 业务逻辑
-│   │   │   ├── scanner.rs        # 项目扫描器
-│   │   │   ├── cache_manager.rs  # 缓存管理
-│   │   │   ├── type_detector.rs  # 类型检测
-│   │   │   └── ...
-│   │   ├── commands/             # Tauri 命令
-│   │   └── lib.rs                # 主入口
-│   ├── Cargo.toml
-│   └── tauri.conf.json           # Tauri 配置
-└── .zcf/plan/                    # 开发计划文档
-```
+- **刷新缓存** - 重新扫描所有工作区
+- **设置** - 打开设置窗口
+- **退出** - 关闭应用
 
-## 使用说明
+## 权限说明
 
-### 基本使用
+### Windows
 
-1. **首次启动**
-   - 应用会显示在系统托盘
-   - 按默认快捷键 `Ctrl+Shift+P` (Windows) 或 `Cmd+Shift+P` (macOS) 唤醒搜索框
+无需额外权限。如遇杀毒软件拦截，请添加信任。
 
-2. **搜索项目**
-   - 在搜索框中输入项目名称或路径关键词
-   - 支持模糊匹配和拼音搜索
-   - 按 `Enter` 或点击项目打开
+### macOS
 
-3. **刷新缓存**
-   - 右键点击托盘图标
-   - 选择"刷新项目缓存"
-
-### 配置
-
-#### 添加工作区
-
-在设置中添加您的项目目录，应用会自动扫描这些目录下的 Git/Svn/Mercurial 项目。
-
-#### 配置启动器
-
-添加您常用的编辑器/IDE，例如：
-- Visual Studio Code
-- WebStorm
-- Sublime Text
-- 自定义命令
-
-#### 自定义快捷键
-
-在设置中录制新的全局快捷键，应用会自动检测冲突。
-
-## 性能指标
-
-| 指标 | 目标值 | 说明 |
-|------|--------|------|
-| 启动时间 | <100ms | 从唤醒到显示 |
-| 搜索响应 | <16ms | 60fps 流畅搜索 |
-| 项目扫描 | 10000项目 <2秒 | rayon 并行扫描 |
-| 后台内存 | <50MB | 最小化状态 |
-| 前台内存 | <100MB | 搜索窗口显示 |
-
-## 已知问题
-
-### Windows 编译错误
-
-如果遇到链接器错误，请确保安装了 Visual Studio 2022 的 C++ 构建工具：
-
-1. 下载 [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/)
-2. 运行安装程序
-3. 选择 "使用 C++ 的桌面开发" 工作负载
-4. 安装完成后重新运行 `cargo check`
-
-### macOS 权限问题
-
-首次运行可能需要授予以下权限：
-- 辅助功能权限（用于全局快捷键）
-- 文件访问权限（用于扫描项目）
-
-在"系统偏好设置" > "安全性与隐私" > "隐私"中授予相应权限。
-
-## 开发指南
-
-### 添加新的项目类型
-
-编辑 `src-tauri/src/services/type_detector.rs`，添加识别规则。
-
-### 添加新的 Tauri 命令
-
-1. 在 `src-tauri/src/commands/` 中创建命令函数
-2. 在 `src-tauri/src/lib.rs` 的 `invoke_handler!` 中注册
-3. 在前端调用 `invoke('command_name', { args })`
-
-### 调试
-
-开发模式下，应用会自动打开 DevTools。也可以使用 VS Code 的调试配置。
+首次运行可能需要授予文件访问权限（用于扫描项目目录）。
 
 ## 许可证
 
 MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
----
-
-**注意**: 本项目基于 utools 插件重构而来，已完全独立，无任何 utools 依赖。
