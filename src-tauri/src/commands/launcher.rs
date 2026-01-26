@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use crate::models::launcher::Launcher;
 use crate::services::launcher_service::LauncherService;
 use crate::commands::project::AppState;
@@ -71,6 +71,9 @@ pub async fn add_launcher(
     // Save to disk
     save_config_to_disk(&app, &config)?;
 
+    // 通知所有窗口启动器列表已更新
+    let _ = app.emit("launchers-updated", ());
+
     Ok(launcher)
 }
 
@@ -88,6 +91,9 @@ pub async fn update_launcher(
 
         // Save to disk
         save_config_to_disk(&app, &config)?;
+
+        // 通知所有窗口启动器列表已更新
+        let _ = app.emit("launchers-updated", ());
 
         Ok(())
     } else {
@@ -107,6 +113,26 @@ pub async fn remove_launcher(
 
     // Save to disk
     save_config_to_disk(&app, &config)?;
+
+    // 清理项目中对该启动器的绑定
+    drop(config); // 释放 config 锁
+    let cache_manager = state.cache_manager.lock().unwrap();
+    if let Ok(Some(cache)) = cache_manager.load_instant() {
+        let mut projects = cache.projects;
+        let mut modified = false;
+        for project in projects.iter_mut() {
+            if project.launcher_id.as_ref() == Some(&launcher_id) {
+                project.launcher_id = None;
+                modified = true;
+            }
+        }
+        if modified {
+            let _ = cache_manager.save(projects);
+        }
+    }
+
+    // 通知所有窗口启动器列表已更新
+    let _ = app.emit("launchers-updated", ());
 
     Ok(())
 }

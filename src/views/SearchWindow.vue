@@ -38,6 +38,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const containerRect = ref<DOMRect | null>(null)
 let unlistenLauncherShortcut: UnlistenFn | null = null
 let unlistenProjectsUpdated: UnlistenFn | null = null
+let unlistenLaunchersUpdated: UnlistenFn | null = null
 let focusLostTimer: ReturnType<typeof setTimeout> | null = null
 let shortcutProtectionTimer: ReturnType<typeof setTimeout> | null = null
 // 快捷键触发后的焦点保护期（防止焦点切换导致窗口自动关闭）
@@ -148,6 +149,13 @@ onMounted(async () => {
 
   // 监听项目列表更新事件（来自其他窗口的变更）
   unlistenProjectsUpdated = await listen('projects-updated', async () => {
+    await projectStore.loadProjects()
+  })
+
+  // 监听启动器列表更新事件（来自设置窗口的变更）
+  unlistenLaunchersUpdated = await listen('launchers-updated', async () => {
+    await launcherStore.loadLaunchers()
+    // 同时刷新项目列表，因为删除启动器时可能清理了项目绑定
     await projectStore.loadProjects()
   })
 
@@ -352,6 +360,10 @@ onUnmounted(() => {
   // 取消监听项目更新事件
   if (unlistenProjectsUpdated) {
     unlistenProjectsUpdated()
+  }
+  // 取消监听启动器更新事件
+  if (unlistenLaunchersUpdated) {
+    unlistenLaunchersUpdated()
   }
 })
 </script>

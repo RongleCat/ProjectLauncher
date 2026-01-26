@@ -1,5 +1,7 @@
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
+use crate::services::monitor_utils;
+
 #[cfg(target_os = "macos")]
 use cocoa::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy};
 
@@ -24,8 +26,48 @@ fn set_activation_policy_accessory() {
 #[tauri::command]
 pub async fn show_search_window(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("search") {
-        window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
+        let window_width = 800.0_f64;
+        let window_height = 680.0_f64;
+
+        // macOS: 使用原生 API 避免跨显示器闪烁
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(monitor) = monitor_utils::get_active_monitor() {
+                if let Ok(ns_window) = window.ns_window() {
+                    // 使用原生 API 设置位置并显示（避免闪烁）
+                    monitor_utils::set_window_position_and_show(
+                        ns_window as *mut objc::runtime::Object,
+                        &monitor,
+                        window_width,
+                        window_height,
+                    );
+                    // 同步 Tauri 窗口状态，确保焦点事件正常工作
+                    let _ = window.set_focus();
+                } else {
+                    // 回退到 Tauri API
+                    window.show().map_err(|e| e.to_string())?;
+                    window.set_focus().map_err(|e| e.to_string())?;
+                }
+            } else {
+                window.show().map_err(|e| e.to_string())?;
+                window.set_focus().map_err(|e| e.to_string())?;
+            }
+        }
+
+        // 非 macOS: 使用 Tauri API
+        #[cfg(not(target_os = "macos"))]
+        {
+            if let Some(monitor) = monitor_utils::get_active_monitor() {
+                let x = monitor.x + (monitor.width - window_width) / 2.0;
+                let y = monitor.y + (monitor.height - window_height) / 3.0;
+
+                let _ = window.set_position(tauri::Position::Logical(
+                    tauri::LogicalPosition { x, y }
+                ));
+            }
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }

@@ -4,6 +4,8 @@ import { useLauncherStore } from '@/stores/launcher'
 import { storeToRefs } from 'pinia'
 import type { Launcher } from '@/types'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useConfirm } from '@/composables/useConfirm'
 import LauncherDialog from './LauncherDialog.vue'
 import { Pencil, Trash2, Keyboard, Plus, Terminal, AppWindow } from 'lucide-vue-next'
 
@@ -16,6 +18,16 @@ const emit = defineEmits<{
 
 const dialogOpen = ref(false)
 const editingLauncher = ref<Launcher | null>(null)
+
+// 确认对话框
+const {
+  isOpen: confirmOpen,
+  options: confirmOptions,
+  confirm,
+  handleConfirm,
+  handleCancel,
+  handleOpenChange: handleConfirmOpenChange,
+} = useConfirm()
 
 onMounted(async () => {
   await launcherStore.loadLaunchers()
@@ -42,7 +54,13 @@ const handleEdit = (launcher: Launcher) => {
 }
 
 const handleDelete = async (launcher: Launcher) => {
-  if (!confirm(`确定要删除启动器 "${launcher.name}" 吗？`)) return
+  const confirmed = await confirm({
+    title: '删除启动器',
+    description: `确定要删除启动器 "${launcher.name}" 吗？`,
+    confirmText: '删除',
+    variant: 'destructive',
+  })
+  if (!confirmed) return
 
   try {
     if (launcher.shortcut) {
@@ -214,6 +232,19 @@ const handleSave = async (launcher: Partial<Launcher>) => {
       :launcher="editingLauncher"
       @update:open="dialogOpen = $event"
       @save="handleSave"
+    />
+
+    <!-- Confirm Dialog -->
+    <ConfirmDialog
+      :open="confirmOpen"
+      :title="confirmOptions.title"
+      :description="confirmOptions.description"
+      :confirm-text="confirmOptions.confirmText"
+      :cancel-text="confirmOptions.cancelText"
+      :variant="confirmOptions.variant"
+      @update:open="handleConfirmOpenChange"
+      @confirm="handleConfirm"
+      @cancel="handleCancel"
     />
   </div>
 </template>
