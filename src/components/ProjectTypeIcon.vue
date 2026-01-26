@@ -1,33 +1,42 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Icon } from '@iconify/vue'
-import { PROJECT_TYPE_ICONS } from '@/types'
 import { FolderCode, Folder } from 'lucide-vue-next'
 
 const props = withDefaults(
   defineProps<{
     type?: string | null
     size?: number
-    colored?: boolean
     isCustom?: boolean
   }>(),
   {
     type: 'unknown',
     size: 20,
-    colored: true,
     isCustom: false,
   }
 )
 
-// 获取 Iconify 图标名称
-const iconName = computed(() => {
-  const baseIcon = PROJECT_TYPE_ICONS[props.type || 'unknown'] || PROJECT_TYPE_ICONS.unknown
-  // 根据 colored 属性选择图标变体
-  if (!props.colored && !baseIcon.includes('-plain')) {
-    // 尝试使用 plain 变体（如果存在）
-    return baseIcon.replace('-original', '-plain')
-  }
-  return baseIcon
+// 使用 Vite 的 import.meta.glob 批量导入本地 SVG 图标
+const iconModules = import.meta.glob<string>('@/assets/icons/projects/*.svg', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
+// 构建图标映射 { rust: '/assets/icons/projects/rust.svg', ... }
+const iconMap: Record<string, string> = {}
+for (const [path, url] of Object.entries(iconModules)) {
+  const name = path.split('/').pop()?.replace('.svg', '') || ''
+  iconMap[name] = url
+}
+
+// 获取图标 URL
+const iconUrl = computed(() => {
+  const type = props.type || 'unknown'
+  // 特殊映射：react_ts 和 xcode
+  if (type === 'react_ts') return iconMap['react']
+  if (type === 'xcode') return iconMap['apple']
+  if (type === 'dart') return iconMap['flutter'] // dart 项目使用 flutter 图标
+  return iconMap[type] || iconMap['unknown']
 })
 
 // 是否显示自定义文件夹图标
@@ -57,12 +66,13 @@ const showTypeIcon = computed(() => !props.isCustom && props.type && props.type 
       :size="size"
       class="text-muted-foreground"
     />
-    <!-- 已知项目类型：显示 Iconify 图标 -->
-    <Icon
+    <!-- 已知项目类型：显示本地 SVG 图标 -->
+    <img
       v-else-if="showTypeIcon"
-      :icon="iconName"
+      :src="iconUrl"
       :width="size"
       :height="size"
+      :alt="type || 'project'"
       class="project-type-img"
     />
   </div>

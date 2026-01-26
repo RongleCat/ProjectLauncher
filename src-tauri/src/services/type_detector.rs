@@ -31,8 +31,11 @@ impl TypeDetector {
             return Some("bun".to_string());
         }
 
-        // Dart/Flutter
+        // Flutter / Dart
         if path.join("pubspec.yaml").exists() {
+            if let Some(flutter_type) = Self::detect_flutter_type(path) {
+                return Some(flutter_type);
+            }
             return Some("dart".to_string());
         }
 
@@ -46,6 +49,21 @@ impl TypeDetector {
             return Some("android".to_string());
         }
 
+        // Unity
+        if path.join("Assets").exists() && path.join("ProjectSettings").exists() {
+            return Some("unity".to_string());
+        }
+
+        // Unreal Engine
+        if Self::has_extension(path, "uproject") {
+            return Some("unreal".to_string());
+        }
+
+        // Godot
+        if path.join("project.godot").exists() {
+            return Some("godot".to_string());
+        }
+
         // Node.js 项目（包含多种框架检测）
         if let Some(node_type) = Self::detect_nodejs_type(path) {
             return Some(node_type);
@@ -56,13 +74,9 @@ impl TypeDetector {
             return Some("typescript".to_string());
         }
 
-        // Python
-        if path.join("requirements.txt").exists()
-            || path.join("setup.py").exists()
-            || path.join("pyproject.toml").exists()
-            || path.join("Pipfile").exists()
-        {
-            return Some("python".to_string());
+        // Python 框架检测
+        if let Some(python_type) = Self::detect_python_type(path) {
+            return Some(python_type);
         }
 
         // Go
@@ -94,8 +108,11 @@ impl TypeDetector {
             return Some("dotnet".to_string());
         }
 
-        // Java/Maven
+        // Java/Maven (包含 Spring 检测)
         if path.join("pom.xml").exists() {
+            if let Some(java_type) = Self::detect_maven_type(path) {
+                return Some(java_type);
+            }
             return Some("maven".to_string());
         }
 
@@ -154,6 +171,11 @@ impl TypeDetector {
             return Some("lua".to_string());
         }
 
+        // Jupyter Notebook
+        if Self::has_extension(path, "ipynb") {
+            return Some("jupyter".to_string());
+        }
+
         // Docker（作为辅助标识，优先级较低）
         if path.join("Dockerfile").exists()
             || path.join("docker-compose.yml").exists()
@@ -197,6 +219,13 @@ impl TypeDetector {
             return Some("nextjs".to_string());
         }
 
+        // Remix
+        if Self::has_dependency(&dependencies, "@remix-run/react")
+            || Self::has_dependency(&dev_dependencies, "@remix-run/react")
+        {
+            return Some("remix".to_string());
+        }
+
         // Astro
         if path.join("astro.config.mjs").exists()
             || path.join("astro.config.ts").exists()
@@ -214,6 +243,20 @@ impl TypeDetector {
             || Self::has_dependency(&dev_dependencies, "svelte")
         {
             return Some("svelte".to_string());
+        }
+
+        // Qwik
+        if Self::has_dependency(&dependencies, "@builder.io/qwik")
+            || Self::has_dependency(&dev_dependencies, "@builder.io/qwik")
+        {
+            return Some("qwik".to_string());
+        }
+
+        // SolidJS
+        if Self::has_dependency(&dependencies, "solid-js")
+            || Self::has_dependency(&dev_dependencies, "solid-js")
+        {
+            return Some("solidjs".to_string());
         }
 
         // Angular
@@ -264,6 +307,57 @@ impl TypeDetector {
         Some("javascript".to_string())
     }
 
+    /// 检测 Python 项目类型
+    fn detect_python_type(path: &Path) -> Option<String> {
+        // 检查 requirements.txt
+        let requirements = path.join("requirements.txt");
+        if requirements.exists() {
+            if let Ok(content) = fs::read_to_string(&requirements) {
+                let content_lower = content.to_lowercase();
+                if content_lower.contains("fastapi") {
+                    return Some("fastapi".to_string());
+                }
+                if content_lower.contains("django") {
+                    return Some("django".to_string());
+                }
+                if content_lower.contains("flask") {
+                    return Some("flask".to_string());
+                }
+            }
+            return Some("python".to_string());
+        }
+
+        // 检查 pyproject.toml
+        let pyproject = path.join("pyproject.toml");
+        if pyproject.exists() {
+            if let Ok(content) = fs::read_to_string(&pyproject) {
+                let content_lower = content.to_lowercase();
+                if content_lower.contains("fastapi") {
+                    return Some("fastapi".to_string());
+                }
+                if content_lower.contains("django") {
+                    return Some("django".to_string());
+                }
+                if content_lower.contains("flask") {
+                    return Some("flask".to_string());
+                }
+            }
+            return Some("python".to_string());
+        }
+
+        // Django 特征文件
+        if path.join("manage.py").exists() {
+            return Some("django".to_string());
+        }
+
+        // setup.py 或 Pipfile
+        if path.join("setup.py").exists() || path.join("Pipfile").exists() {
+            return Some("python".to_string());
+        }
+
+        None
+    }
+
     /// 检测 PHP 项目类型
     fn detect_php_type(path: &Path) -> Option<String> {
         let composer_json = path.join("composer.json");
@@ -281,6 +375,40 @@ impl TypeDetector {
             || path.join("artisan").exists()
         {
             return Some("laravel".to_string());
+        }
+
+        None
+    }
+
+    /// 检测 Maven 项目类型（包含 Spring）
+    fn detect_maven_type(path: &Path) -> Option<String> {
+        let pom_xml = path.join("pom.xml");
+        if !pom_xml.exists() {
+            return None;
+        }
+
+        if let Ok(content) = fs::read_to_string(&pom_xml) {
+            let content_lower = content.to_lowercase();
+            if content_lower.contains("spring-boot") || content_lower.contains("springframework") {
+                return Some("spring".to_string());
+            }
+        }
+
+        None
+    }
+
+    /// 检测 Flutter / Dart 类型
+    fn detect_flutter_type(path: &Path) -> Option<String> {
+        let pubspec = path.join("pubspec.yaml");
+        if !pubspec.exists() {
+            return None;
+        }
+
+        if let Ok(content) = fs::read_to_string(&pubspec) {
+            // 检查是否使用 Flutter SDK
+            if content.contains("flutter:") && content.contains("sdk: flutter") {
+                return Some("flutter".to_string());
+            }
         }
 
         None

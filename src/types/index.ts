@@ -44,37 +44,34 @@ export type Platform = 'darwin' | 'win32' | 'linux'
 
 // 项目类型枚举
 export type ProjectType =
-  // 原有类型
-  | 'rust'
+  // 前端框架
   | 'vue'
   | 'react'
   | 'react_ts'
   | 'nextjs'
   | 'nuxt'
+  | 'svelte'
+  | 'angular'
+  | 'astro'
+  | 'remix'
+  | 'solidjs'
+  | 'qwik'
+  // 后端框架
+  | 'nest'
+  | 'rails'
+  | 'laravel'
+  | 'django'
+  | 'flask'
+  | 'fastapi'
+  | 'spring'
+  // 编程语言
+  | 'rust'
   | 'typescript'
   | 'javascript'
   | 'python'
   | 'go'
-  | 'dart'
-  | 'android'
-  | 'xcode'
-  | 'electron'
-  | 'vite'
-  | 'hexo'
-  | 'maven'
-  | 'gradle'
-  // 新增类型
-  | 'tauri'
-  | 'svelte'
-  | 'angular'
-  | 'astro'
-  | 'nest'
-  | 'deno'
-  | 'bun'
   | 'ruby'
-  | 'rails'
   | 'php'
-  | 'laravel'
   | 'dotnet'
   | 'cpp'
   | 'c'
@@ -84,65 +81,28 @@ export type ProjectType =
   | 'haskell'
   | 'lua'
   | 'zig'
+  // 移动端/跨平台
+  | 'dart'
+  | 'flutter'
+  | 'android'
+  | 'xcode'
+  // 桌面应用
+  | 'tauri'
+  | 'electron'
+  // 构建工具/运行时
+  | 'vite'
+  | 'maven'
+  | 'gradle'
+  | 'deno'
+  | 'bun'
+  // 其他
+  | 'hexo'
   | 'docker'
+  | 'unity'
+  | 'unreal'
+  | 'godot'
+  | 'jupyter'
   | 'unknown'
-
-// Devicon 图标映射（项目类型 -> Iconify 图标名称）
-export const PROJECT_TYPE_ICONS: Record<string, string> = {
-  // 原有类型
-  rust: 'devicon:rust',
-  vue: 'devicon:vuejs',
-  react: 'devicon:react',
-  react_ts: 'devicon:react',
-  nextjs: 'devicon:nextjs',
-  nuxt: 'devicon:nuxtjs',
-  typescript: 'devicon:typescript',
-  javascript: 'devicon:javascript',
-  python: 'devicon:python',
-  go: 'devicon:go',
-  dart: 'devicon:flutter',
-  android: 'devicon:android',
-  xcode: 'devicon:apple',
-  electron: 'devicon:electron',
-  vite: 'devicon:vitejs',
-  hexo: 'devicon:hexo',
-  maven: 'devicon:maven',
-  gradle: 'devicon:gradle',
-
-  // 新增类型
-  tauri: 'devicon:tauri',
-  svelte: 'devicon:svelte',
-  angular: 'devicon:angular',
-  astro: 'devicon:astro',
-  nest: 'devicon:nestjs',
-  deno: 'devicon:denojs',
-  bun: 'devicon:bun',
-  ruby: 'devicon:ruby',
-  rails: 'devicon:rails',
-  php: 'devicon:php',
-  laravel: 'devicon:laravel',
-  dotnet: 'devicon:dotnetcore',
-  cpp: 'devicon:cplusplus',
-  c: 'devicon:c',
-  kotlin: 'devicon:kotlin',
-  scala: 'devicon:scala',
-  elixir: 'devicon:elixir',
-  haskell: 'devicon:haskell',
-  lua: 'devicon:lua',
-  zig: 'devicon:zig',
-  docker: 'devicon:docker',
-
-  // fallback
-  unknown: 'devicon:devicon',
-}
-
-// 版本控制图标映射（使用 Iconify 格式）
-export const VERSION_CONTROL_ICONS: Record<VersionControl, string> = {
-  Git: 'devicon:git',
-  Svn: 'devicon:subversion',
-  Mercurial: 'devicon:tortoisegit', // Mercurial 没有专门图标，使用近似
-  None: '',
-}
 
 export interface PresetApp {
   id: string

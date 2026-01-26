@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Icon } from '@iconify/vue'
-import { VERSION_CONTROL_ICONS, type VersionControl } from '@/types'
+import type { VersionControl } from '@/types'
+
+// 导入本地 VCS 图标
+import gitIcon from '@/assets/icons/vcs/git.svg?url'
+import svnIcon from '@/assets/icons/vcs/svn.svg?url'
+import mercurialIcon from '@/assets/icons/vcs/mercurial.svg?url'
 
 const props = withDefaults(
   defineProps<{
@@ -13,21 +17,30 @@ const props = withDefaults(
   }
 )
 
-// 获取 Iconify 图标名称
-const iconName = computed(() => {
-  return VERSION_CONTROL_ICONS[props.type] || null
+// VCS 图标映射
+const vcsIconMap: Record<VersionControl, string | null> = {
+  Git: gitIcon,
+  Svn: svnIcon,
+  Mercurial: mercurialIcon,
+  None: null,
+}
+
+// 获取图标 URL
+const iconUrl = computed(() => {
+  return vcsIconMap[props.type] || null
 })
 
 // 是否显示图标
-const showIcon = computed(() => props.type !== 'None' && iconName.value)
+const showIcon = computed(() => props.type !== 'None' && iconUrl.value)
 </script>
 
 <template>
-  <Icon
+  <img
     v-if="showIcon"
-    :icon="iconName!"
+    :src="iconUrl!"
     :width="size"
     :height="size"
+    :alt="type"
     class="vcs-icon"
   />
 </template>
