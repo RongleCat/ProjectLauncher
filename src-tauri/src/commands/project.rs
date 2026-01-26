@@ -21,29 +21,44 @@ pub async fn get_cached_projects(state: State<'_, AppState>) -> Result<Vec<Proje
     }
 }
 
-/// 强制重新扫描项目（保留用户数据）
+/// 强制重新扫描项目（保留用户数据和自定义项目）
 #[tauri::command]
 pub async fn force_rescan(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
     let config = state.config.lock().unwrap().clone();
     let cache_manager = state.cache_manager.lock().unwrap();
 
-    // 加载旧缓存，创建 path -> 旧项目 的映射
-    let old_map: HashMap<String, Project> = cache_manager
+    // 加载旧缓存
+    let old_projects = cache_manager
         .load_instant()
         .ok()
         .flatten()
         .map(|c| c.projects)
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    // 创建 path -> 旧项目 的映射
+    let old_map: HashMap<String, Project> = old_projects
+        .iter()
+        .map(|p| (p.path.clone(), p.clone()))
+        .collect();
+
+    // 提取自定义项目（is_custom = true）
+    let custom_projects: Vec<Project> = old_projects
         .into_iter()
-        .map(|p| (p.path.clone(), p))
+        .filter(|p| p.is_custom)
         .collect();
 
     // 使用并行扫描
     let scanner = ProjectScanner::new(config.ignore_dirs);
     let new_projects = scanner.scan_parallel(&config.workspaces);
 
+    // 收集扫描到的项目路径（用于去重）
+    let scanned_paths: std::collections::HashSet<String> = new_projects
+        .iter()
+        .map(|p| p.path.clone())
+        .collect();
+
     // 合并：保留用户数据（hits, launcher_id, top, project_type, last_opened）
-    let merged: Vec<Project> = new_projects
+    let mut merged: Vec<Project> = new_projects
         .into_iter()
         .map(|mut new| {
             if let Some(old) = old_map.get(&new.path) {
@@ -56,6 +71,13 @@ pub async fn force_rescan(state: State<'_, AppState>) -> Result<Vec<Project>, St
             new
         })
         .collect();
+
+    // 添加不在扫描结果中的自定义项目
+    for custom in custom_projects {
+        if !scanned_paths.contains(&custom.path) {
+            merged.push(custom);
+        }
+    }
 
     // 保存到缓存
     cache_manager.save(merged.clone())
@@ -182,6 +204,7 @@ pub async fn update_project_top(
 #[tauri::command]
 pub async fn add_custom_project(
     state: State<'_, AppState>,
+    app: tauri::AppHandle,
     folder_path: String,
 ) -> Result<Project, String> {
     use std::path::Path;
@@ -240,6 +263,9 @@ pub async fn add_custom_project(
     projects.push(project.clone());
     cache_manager.save(projects).map_err(|e| e.to_string())?;
 
+    // 广播项目更新事件
+    let _ = app.emit("projects-updated", ());
+
     Ok(project)
 }
 
@@ -247,6 +273,7 @@ pub async fn add_custom_project(
 #[tauri::command]
 pub async fn remove_custom_project(
     state: State<'_, AppState>,
+    app: tauri::AppHandle,
     project_path: String,
 ) -> Result<(), String> {
     let cache_manager = state.cache_manager.lock().unwrap();
@@ -265,6 +292,9 @@ pub async fn remove_custom_project(
 
     projects.remove(idx);
     cache_manager.save(projects).map_err(|e| e.to_string())?;
+
+    // 广播项目更新事件
+    let _ = app.emit("projects-updated", ());
 
     Ok(())
 }

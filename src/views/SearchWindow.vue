@@ -37,6 +37,7 @@ const contextMenuProject = ref<Project | null>(null)
 const containerRef = ref<HTMLElement | null>(null)
 const containerRect = ref<DOMRect | null>(null)
 let unlistenLauncherShortcut: UnlistenFn | null = null
+let unlistenProjectsUpdated: UnlistenFn | null = null
 let focusLostTimer: ReturnType<typeof setTimeout> | null = null
 let shortcutProtectionTimer: ReturnType<typeof setTimeout> | null = null
 // 快捷键触发后的焦点保护期（防止焦点切换导致窗口自动关闭）
@@ -143,6 +144,11 @@ onMounted(async () => {
     // 设置焦点保护期，防止窗口打开后因焦点切换而自动关闭
     setShortcutProtection()
     activeLauncherId.value = event.payload
+  })
+
+  // 监听项目列表更新事件（来自其他窗口的变更）
+  unlistenProjectsUpdated = await listen('projects-updated', async () => {
+    await projectStore.loadProjects()
   })
 
   // 监听 Escape 键
@@ -342,6 +348,10 @@ onUnmounted(() => {
   // 取消监听启动器快捷键事件
   if (unlistenLauncherShortcut) {
     unlistenLauncherShortcut()
+  }
+  // 取消监听项目更新事件
+  if (unlistenProjectsUpdated) {
+    unlistenProjectsUpdated()
   }
 })
 </script>
