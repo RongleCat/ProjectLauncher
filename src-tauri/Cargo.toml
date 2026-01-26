@@ -1,6 +1,6 @@
 [package]
 name = "tauri-project-launcher"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tauri Project Launcher - A desktop application"
 authors = ["you"]
 edition = "2021"
