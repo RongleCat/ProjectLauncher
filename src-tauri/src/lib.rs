@@ -45,15 +45,11 @@ pub fn run() {
 
             // 加载配置
             let config_path = app_data_dir.join("config.json");
-            println!("配置文件路径: {:?}", config_path);
             let config = if config_path.exists() {
                 match fs::read_to_string(&config_path) {
                     Ok(content) => {
                         match serde_json::from_str::<Config>(&content) {
-                            Ok(cfg) => {
-                                println!("配置加载成功，启动器数量: {}", cfg.launchers.len());
-                                cfg
-                            }
+                            Ok(cfg) => cfg,
                             Err(e) => {
                                 eprintln!("配置文件解析失败: {}, 使用默认配置", e);
                                 Config::default()
@@ -66,7 +62,6 @@ pub fn run() {
                     }
                 }
             } else {
-                println!("配置文件不存在，使用默认配置");
                 Config::default()
             };
 
@@ -81,8 +76,6 @@ pub fn run() {
                 if let Some(ref shortcut) = launcher.shortcut {
                     if let Err(e) = shortcut_manager.register_for_launcher(shortcut, &launcher.id) {
                         eprintln!("注册启动器快捷键失败 [{}]: {}", launcher.name, e);
-                    } else {
-                        println!("启动器快捷键已注册: {} -> {}", launcher.name, shortcut);
                     }
                 }
             }
@@ -172,6 +165,8 @@ pub fn run() {
             commands::project::update_project_top,
             commands::project::add_custom_project,
             commands::project::remove_custom_project,
+            commands::project::reset_project_hits,
+            commands::project::reset_all_project_hits,
             // 启动器相关
             commands::launcher::launch_project,
             commands::launcher::get_launchers,

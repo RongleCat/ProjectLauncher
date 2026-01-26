@@ -4,15 +4,11 @@ use std::str::FromStr;
 use std::sync::Mutex;
 use std::time::Instant;
 
+use super::monitor_utils;
+
 // 防抖：记录上次触发时间
 static LAST_LAUNCHER_TRIGGER: Mutex<Option<Instant>> = Mutex::new(None);
 const DEBOUNCE_MS: u128 = 200;
-
-// 已知的修饰键列表（用于识别）
-const MODIFIERS: &[&str] = &[
-    "CommandOrControl", "CmdOrCtrl", "Command", "Cmd", "Control", "Ctrl",
-    "Shift", "Alt", "Option", "Super", "Meta"
-];
 
 /// 展开平台无关的修饰键为平台特定的修饰键
 /// macOS: CommandOrControl -> Command
@@ -28,69 +24,13 @@ fn expand_platform_modifier(modifier: &str) -> &str {
     modifier
 }
 
-/// 生成快捷键的修饰键顺序变体
-/// 例如 "CommandOrControl+Shift+O" 在 macOS 上生成:
-/// - "Command+Shift+O"
-/// - "Shift+Command+O"
-fn generate_shortcut_variants(shortcut_str: &str) -> Vec<String> {
-    let parts: Vec<&str> = shortcut_str.split('+').collect();
-    if parts.len() < 2 {
-        return vec![shortcut_str.to_string()];
-    }
-
-    // 分离修饰键和主键，同时展开平台无关修饰键
-    let mut modifiers: Vec<String> = Vec::new();
-    let mut main_key: Option<&str> = None;
-
-    for part in &parts {
-        let part_lower = part.to_lowercase();
-        let is_modifier = MODIFIERS.iter().any(|m| m.to_lowercase() == part_lower);
-        if is_modifier {
-            // 展开平台无关修饰键
-            let expanded = expand_platform_modifier(part);
-            modifiers.push(expanded.to_string());
-        } else {
-            main_key = Some(part);
-        }
-    }
-
-    let main_key = match main_key {
-        Some(k) => k,
-        None => return vec![shortcut_str.to_string()],
-    };
-
-    // 如果只有一个修饰键，返回展开后的格式
-    if modifiers.len() <= 1 {
-        return vec![format!("{}+{}", modifiers.join("+"), main_key)];
-    }
-
-    // 生成修饰键的所有排列组合
-    let mut variants: Vec<String> = Vec::new();
-
-    // 原始顺序
-    let original = format!("{}+{}", modifiers.join("+"), main_key);
-    variants.push(original);
-
-    // 对于2个修饰键，交换顺序
-    if modifiers.len() == 2 {
-        let swapped = format!("{}+{}+{}", modifiers[1], modifiers[0], main_key);
-        variants.push(swapped);
-    }
-
-    // 对于3个修饰键，生成更多排列（如 Ctrl+Alt+Shift）
-    if modifiers.len() == 3 {
-        // 生成其他排列组合
-        let perms = [
-            [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]
-        ];
-        for perm in &perms {
-            let variant = format!("{}+{}+{}+{}",
-                modifiers[perm[0]], modifiers[perm[1]], modifiers[perm[2]], main_key);
-            variants.push(variant);
-        }
-    }
-
-    variants
+/// 规范化快捷键字符串，展开平台无关的修饰键
+fn normalize_shortcut(shortcut_str: &str) -> String {
+    shortcut_str
+        .split('+')
+        .map(|part| expand_platform_modifier(part))
+        .collect::<Vec<_>>()
+        .join("+")
 }
 
 pub struct ShortcutManager {
@@ -102,61 +42,33 @@ impl ShortcutManager {
         Self { app }
     }
 
-    /// 注册启动器专用快捷键（自动注册修饰键顺序变体）
+    /// 注册启动器专用快捷键
     pub fn register_for_launcher(&self, shortcut_str: &str, launcher_id: &str) -> Result<(), String> {
-        let variants = generate_shortcut_variants(shortcut_str);
-        let mut registered_count = 0;
-        let mut first_error: Option<String> = None;
+        let normalized = normalize_shortcut(shortcut_str);
+        let shortcut = Shortcut::from_str(&normalized)
+            .map_err(|e| format!("快捷键格式无效 [{}]: {}", shortcut_str, e))?;
 
-        for variant in &variants {
-            let shortcut = match Shortcut::from_str(variant) {
-                Ok(s) => s,
-                Err(_) => continue, // 静默跳过无效格式
-            };
+        let app_clone = self.app.clone();
+        let launcher_id_owned = launcher_id.to_string();
 
-            let app_clone = self.app.clone();
-            let launcher_id_owned = launcher_id.to_string();
-
-            match self.app
-                .global_shortcut()
-                .on_shortcut(shortcut, move |_app, _event, _shortcut| {
-                    if let Err(e) = show_search_window_for_launcher(&app_clone, &launcher_id_owned) {
-                        eprintln!("显示窗口失败: {}", e);
-                    }
-                }) {
-                Ok(_) => {
-                    registered_count += 1;
-                    println!("快捷键变体已注册: {}", variant);
+        self.app
+            .global_shortcut()
+            .on_shortcut(shortcut, move |_app, _event, _shortcut| {
+                if let Err(e) = show_search_window_for_launcher(&app_clone, &launcher_id_owned) {
+                    eprintln!("显示窗口失败: {}", e);
                 }
-                Err(e) => {
-                    // 保存第一个错误，但不打印（变体失败是预期的）
-                    if first_error.is_none() {
-                        first_error = Some(e.to_string());
-                    }
-                }
-            }
-        }
+            })
+            .map_err(|e| format!("快捷键注册失败 [{}]: {}", shortcut_str, e))?;
 
-        if registered_count > 0 {
-            Ok(())
-        } else {
-            Err(format!("快捷键注册失败 [{}]: {}",
-                shortcut_str,
-                first_error.unwrap_or_else(|| "未知错误".to_string())))
-        }
+        Ok(())
     }
 
-    /// 注销快捷键（自动注销所有变体）
+    /// 注销快捷键
     pub fn unregister(&self, shortcut_str: &str) -> Result<(), String> {
-        let variants = generate_shortcut_variants(shortcut_str);
-
-        for variant in &variants {
-            if let Ok(shortcut) = Shortcut::from_str(variant) {
-                let _ = self.app.global_shortcut().unregister(shortcut);
-                println!("快捷键变体已注销: {}", variant);
-            }
+        let normalized = normalize_shortcut(shortcut_str);
+        if let Ok(shortcut) = Shortcut::from_str(&normalized) {
+            let _ = self.app.global_shortcut().unregister(shortcut);
         }
-
         Ok(())
     }
 
@@ -199,20 +111,47 @@ fn show_search_window_for_launcher(app: &AppHandle, launcher_id: &str) -> Result
     }
 
     if let Some(window) = app.get_webview_window("search") {
-        window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
+        let window_width = 800.0_f64;
+        let window_height = 680.0_f64;
 
-        // 居中显示
-        if let Ok(Some(monitor)) = window.current_monitor() {
-            let monitor_size = monitor.size();
-            if let Ok(window_size) = window.outer_size() {
-                let x = (monitor_size.width as i32 - window_size.width as i32) / 2;
-                let y = (monitor_size.height as i32 - window_size.height as i32) / 3;
+        // macOS: 使用原生 API 避免跨显示器闪烁
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(monitor) = monitor_utils::get_active_monitor() {
+                if let Ok(ns_window) = window.ns_window() {
+                    // 使用原生 API 设置位置并显示（避免闪烁）
+                    monitor_utils::set_window_position_and_show(
+                        ns_window as *mut objc::runtime::Object,
+                        &monitor,
+                        window_width,
+                        window_height,
+                    );
+                    // 同步 Tauri 窗口状态，确保焦点事件正常工作
+                    let _ = window.set_focus();
+                } else {
+                    // 回退到 Tauri API
+                    window.show().map_err(|e| e.to_string())?;
+                    window.set_focus().map_err(|e| e.to_string())?;
+                }
+            } else {
+                window.show().map_err(|e| e.to_string())?;
+                window.set_focus().map_err(|e| e.to_string())?;
+            }
+        }
 
-                let _ = window.set_position(tauri::Position::Physical(
-                    tauri::PhysicalPosition { x, y }
+        // 非 macOS: 使用 Tauri API
+        #[cfg(not(target_os = "macos"))]
+        {
+            if let Some(monitor) = monitor_utils::get_active_monitor() {
+                let x = monitor.x + (monitor.width - window_width) / 2.0;
+                let y = monitor.y + (monitor.height - window_height) / 3.0;
+
+                let _ = window.set_position(tauri::Position::Logical(
+                    tauri::LogicalPosition { x, y }
                 ));
             }
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
         }
 
         // 发送事件通知前端使用指定启动器
