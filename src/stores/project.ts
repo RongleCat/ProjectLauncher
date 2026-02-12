@@ -189,6 +189,20 @@ export const useProjectStore = defineStore('project', {
       }
     },
 
+    // 更新项目别名
+    async updateProjectAlias(projectPath: string, alias: string | null) {
+      try {
+        await invoke('update_project_alias', { projectPath, alias })
+        const project = this.projects.find((p) => p.path === projectPath)
+        if (project) {
+          project.alias = alias ?? undefined
+        }
+      } catch (error) {
+        console.error('更新项目别名失败:', error)
+        throw error
+      }
+    },
+
     // 分页操作
     setPage(page: number) {
       if (page >= 1 && page <= this.totalPages) {
@@ -282,6 +296,34 @@ export const useProjectStore = defineStore('project', {
         }
       } catch (error) {
         console.error('重置所有项目打开次数失败:', error)
+        throw error
+      }
+    },
+
+    // 临时删除项目（仅从缓存移除，重新扫描后恢复）
+    async removeProjectTemp(projectPath: string) {
+      try {
+        await invoke('remove_project_temp', { projectPath })
+        const idx = this.projects.findIndex((p) => p.path === projectPath)
+        if (idx !== -1) {
+          this.projects.splice(idx, 1)
+        }
+      } catch (error) {
+        console.error('临时删除项目失败:', error)
+        throw error
+      }
+    },
+
+    // 排除项目（加入排除列表，重新扫描也不显示）
+    async excludeProject(projectPath: string) {
+      try {
+        await invoke('exclude_project', { projectPath })
+        const idx = this.projects.findIndex((p) => p.path === projectPath)
+        if (idx !== -1) {
+          this.projects.splice(idx, 1)
+        }
+      } catch (error) {
+        console.error('排除项目失败:', error)
         throw error
       }
     },

@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use std::sync::Mutex;
 use std::collections::HashMap;
 use crate::services::{scanner::ProjectScanner, cache_manager::CacheManager, type_detector::TypeDetector};
@@ -47,8 +47,8 @@ pub async fn force_rescan(state: State<'_, AppState>) -> Result<Vec<Project>, St
         .filter(|p| p.is_custom)
         .collect();
 
-    // 使用并行扫描
-    let scanner = ProjectScanner::new(config.ignore_dirs);
+    // 使用并行扫描（传入排除列表）
+    let scanner = ProjectScanner::new(config.ignore_dirs, config.excluded_projects);
     let new_projects = scanner.scan_parallel(&config.workspaces);
 
     // 收集扫描到的项目路径（用于去重）
@@ -57,7 +57,7 @@ pub async fn force_rescan(state: State<'_, AppState>) -> Result<Vec<Project>, St
         .map(|p| p.path.clone())
         .collect();
 
-    // 合并：保留用户数据（hits, launcher_id, top, project_type, last_opened）
+    // 合并：保留用户数据（hits, launcher_id, top, project_type, last_opened, alias）
     let mut merged: Vec<Project> = new_projects
         .into_iter()
         .map(|mut new| {
@@ -67,6 +67,7 @@ pub async fn force_rescan(state: State<'_, AppState>) -> Result<Vec<Project>, St
                 new.top = old.top;
                 new.project_type = old.project_type.clone();
                 new.last_opened = old.last_opened.clone();
+                new.alias = old.alias.clone();
             }
             new
         })
@@ -195,6 +196,36 @@ pub async fn update_project_top(
     let mut projects = cache.projects;
     if let Some(project) = projects.iter_mut().find(|p| p.path == project_path) {
         project.top = top;
+    } else {
+        return Err("项目不存在".to_string());
+    }
+
+    cache_manager.save(projects)
+        .map_err(|e| e.to_string())?;
+
+    // 通知所有窗口项目列表已更新
+    let _ = app.emit("projects-updated", ());
+
+    Ok(())
+}
+
+/// 更新项目别名
+#[tauri::command]
+pub async fn update_project_alias(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    project_path: String,
+    alias: Option<String>,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager.load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+    if let Some(project) = projects.iter_mut().find(|p| p.path == project_path) {
+        // 如果传入空字符串，转换为 None
+        project.alias = alias.filter(|a| !a.is_empty());
     } else {
         return Err("项目不存在".to_string());
     }
@@ -358,6 +389,123 @@ pub async fn reset_all_project_hits(
 
     // 通知所有窗口项目列表已更新
     let _ = app.emit("projects-updated", ());
+
+    Ok(())
+}
+
+/// 临时删除项目（仅从缓存移除，重新扫描后恢复）
+#[tauri::command]
+pub async fn remove_project_temp(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    project_path: String,
+) -> Result<(), String> {
+    let cache_manager = state.cache_manager.lock().unwrap();
+    let cache = cache_manager
+        .load_instant()
+        .map_err(|e| e.to_string())?
+        .ok_or("缓存为空")?;
+
+    let mut projects = cache.projects;
+
+    // 查找并移除项目
+    let idx = projects
+        .iter()
+        .position(|p| p.path == project_path)
+        .ok_or("项目不存在")?;
+
+    projects.remove(idx);
+    cache_manager.save(projects).map_err(|e| e.to_string())?;
+
+    // 广播项目更新事件
+    let _ = app.emit("projects-updated", ());
+
+    Ok(())
+}
+
+/// 排除项目（加入排除列表，重新扫描也不显示）
+#[tauri::command]
+pub async fn exclude_project(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    project_path: String,
+) -> Result<(), String> {
+    // 1. 添加到配置的排除列表
+    {
+        let mut config = state.config.lock().unwrap();
+        if !config.excluded_projects.contains(&project_path) {
+            config.excluded_projects.push(project_path.clone());
+        }
+
+        // 保存配置到磁盘
+        let config_path = app.path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("config.json");
+
+        let json = serde_json::to_string_pretty(&*config)
+            .map_err(|e| e.to_string())?;
+
+        std::fs::write(config_path, json)
+            .map_err(|e| e.to_string())?;
+    }
+
+    // 2. 从缓存移除项目
+    {
+        let cache_manager = state.cache_manager.lock().unwrap();
+        let cache = cache_manager
+            .load_instant()
+            .map_err(|e| e.to_string())?
+            .ok_or("缓存为空")?;
+
+        let projects: Vec<Project> = cache.projects
+            .into_iter()
+            .filter(|p| p.path != project_path)
+            .collect();
+
+        cache_manager.save(projects).map_err(|e| e.to_string())?;
+    }
+
+    // 广播项目更新事件
+    let _ = app.emit("projects-updated", ());
+
+    Ok(())
+}
+
+/// 获取已排除的项目列表
+#[tauri::command]
+pub async fn get_excluded_projects(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let config = state.config.lock().unwrap();
+    Ok(config.excluded_projects.clone())
+}
+
+/// 从排除列表恢复项目
+#[tauri::command]
+pub async fn restore_excluded_project(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    project_path: String,
+) -> Result<(), String> {
+    // 从配置的排除列表移除
+    {
+        let mut config = state.config.lock().unwrap();
+        config.excluded_projects.retain(|p| p != &project_path);
+
+        // 保存配置到磁盘
+        let config_path = app.path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("config.json");
+
+        let json = serde_json::to_string_pretty(&*config)
+            .map_err(|e| e.to_string())?;
+
+        std::fs::write(config_path, json)
+            .map_err(|e| e.to_string())?;
+    }
+
+    // 广播配置更新事件（前端可选择手动刷新项目列表）
+    let _ = app.emit("config-updated", ());
 
     Ok(())
 }

@@ -8,6 +8,7 @@ export interface Project {
   top: boolean
   is_custom: boolean
   last_opened?: string
+  alias?: string
 }
 
 export interface Launcher {
@@ -29,11 +30,15 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 export interface Config {
   workspaces: string[]
   ignore_dirs: string[]
+  excluded_projects: string[]
   launchers: Launcher[]
   autostart: boolean
   theme: ThemeMode
   project_sort_by: ProjectSortBy
 }
+
+// 删除类型
+export type DeleteType = 'temp' | 'exclude'
 
 export interface CacheData {
   projects: Project[]

@@ -5,6 +5,9 @@ use super::launcher::Launcher;
 pub struct Config {
     pub workspaces: Vec<String>,
     pub ignore_dirs: Vec<String>,
+    /// 排除的项目路径列表（重新扫描也不显示）
+    #[serde(default)]
+    pub excluded_projects: Vec<String>,
     pub launchers: Vec<Launcher>,
     pub autostart: bool,
     pub theme: String,
@@ -28,6 +31,7 @@ impl Default for Config {
                 "target".to_string(),
                 ".git".to_string(),
             ],
+            excluded_projects: Vec::new(),
             launchers: Vec::new(),
             autostart: false,
             theme: "light".to_string(),

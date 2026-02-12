@@ -11,6 +11,7 @@ pub struct Project {
     pub top: bool,
     pub is_custom: bool,
     pub last_opened: Option<String>,
+    pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +34,7 @@ impl Project {
             top: false,
             is_custom: false,
             last_opened: None,
+            alias: None,
         }
     }
 }

@@ -7,12 +7,15 @@ export const useSettingsStore = defineStore('settings', {
     config: {
       workspaces: [],
       ignore_dirs: ['node_modules', 'dist', 'build', 'target'],
+      excluded_projects: [],
       launchers: [],
       autostart: false,
       theme: 'system' as ThemeMode,
       project_sort_by: 'hits' as ProjectSortBy,
     } as Config,
     loading: false,
+    // 已排除项目列表（独立状态，便于管理）
+    excludedProjects: [] as string[],
   }),
 
   getters: {
@@ -77,6 +80,30 @@ export const useSettingsStore = defineStore('settings', {
       } catch (error) {
         console.error('获取开机启动状态失败:', error)
         return false
+      }
+    },
+
+    // 获取已排除项目列表
+    async loadExcludedProjects() {
+      try {
+        this.excludedProjects = await invoke<string[]>('get_excluded_projects')
+      } catch (error) {
+        console.error('获取排除列表失败:', error)
+        this.excludedProjects = []
+      }
+    },
+
+    // 从排除列表恢复项目
+    async restoreExcludedProject(projectPath: string) {
+      try {
+        await invoke('restore_excluded_project', { projectPath })
+        const idx = this.excludedProjects.indexOf(projectPath)
+        if (idx !== -1) {
+          this.excludedProjects.splice(idx, 1)
+        }
+      } catch (error) {
+        console.error('恢复排除项目失败:', error)
+        throw error
       }
     },
   },

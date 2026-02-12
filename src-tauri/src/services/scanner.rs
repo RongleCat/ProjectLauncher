@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use walkdir::WalkDir;
 use rayon::prelude::*;
@@ -5,11 +6,16 @@ use crate::models::project::{Project, VersionControl};
 
 pub struct ProjectScanner {
     ignore_dirs: Vec<String>,
+    /// 排除的项目路径（使用 HashSet 优化查找性能）
+    excluded_projects: HashSet<String>,
 }
 
 impl ProjectScanner {
-    pub fn new(ignore_dirs: Vec<String>) -> Self {
-        Self { ignore_dirs }
+    pub fn new(ignore_dirs: Vec<String>, excluded_projects: Vec<String>) -> Self {
+        Self {
+            ignore_dirs,
+            excluded_projects: excluded_projects.into_iter().collect(),
+        }
     }
 
     /// 并行扫描多个工作区
@@ -34,6 +40,7 @@ impl ProjectScanner {
             .filter_map(|e| e.ok())
             .filter(|e| !self.should_ignore(e.path()))
             .filter(|e| e.path().is_dir())
+            .filter(|e| !self.is_excluded_project(e.path()))
             .filter_map(|e| self.detect_version_control(e.path()))
             .collect()
     }
@@ -45,6 +52,15 @@ impl ProjectScanner {
             self.ignore_dirs.contains(&name.to_string())
                 || (name.starts_with('.') && name != ".")
         })
+    }
+
+    /// 检测是否为排除的项目
+    fn is_excluded_project(&self, path: &Path) -> bool {
+        if let Some(path_str) = path.to_str() {
+            self.excluded_projects.contains(path_str)
+        } else {
+            false
+        }
     }
 
     /// 检测版本控制类型
@@ -76,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_should_ignore() {
-        let scanner = ProjectScanner::new(vec!["node_modules".to_string()]);
+        let scanner = ProjectScanner::new(vec!["node_modules".to_string()], vec![]);
         assert!(scanner.should_ignore(Path::new("/path/to/node_modules")));
         assert!(scanner.should_ignore(Path::new("/path/.hidden")));
         assert!(!scanner.should_ignore(Path::new("/path/src")));
@@ -84,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_path_with_spaces() {
-        let scanner = ProjectScanner::new(vec!["node_modules".to_string()]);
+        let scanner = ProjectScanner::new(vec!["node_modules".to_string()], vec![]);
 
         // 包含空格的路径不应该被忽略
         assert!(!scanner.should_ignore(Path::new("/path/my project")));
@@ -92,7 +108,7 @@ mod tests {
         assert!(!scanner.should_ignore(Path::new("/Users/test/Documents/cc workspace")));
 
         // 包含空格但在忽略列表中的目录应该被忽略
-        let scanner_with_space = ProjectScanner::new(vec!["my project".to_string()]);
+        let scanner_with_space = ProjectScanner::new(vec!["my project".to_string()], vec![]);
         assert!(scanner_with_space.should_ignore(Path::new("/path/my project")));
     }
 
@@ -106,5 +122,15 @@ mod tests {
         let name = path.file_name().unwrap().to_str();
         assert!(name.is_some());
         assert_eq!(name.unwrap(), "cc workspace");
+    }
+
+    #[test]
+    fn test_excluded_projects() {
+        let scanner = ProjectScanner::new(
+            vec![],
+            vec!["/path/to/excluded".to_string()],
+        );
+        assert!(scanner.is_excluded_project(Path::new("/path/to/excluded")));
+        assert!(!scanner.is_excluded_project(Path::new("/path/to/normal")));
     }
 }
