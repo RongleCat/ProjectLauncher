@@ -5,7 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useProjectStore } from '@/stores/project'
 import { useLauncherStore } from '@/stores/launcher'
 import { useConfirm } from '@/composables/useConfirm'
-import type { Project, VersionControl } from '@/types'
+import type { Project, VersionControl, DeleteType } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import ProjectTypeIcon from '@/components/ProjectTypeIcon.vue'
 import VcsIcon from '@/components/VcsIcon.vue'
 import ProjectDialog from './ProjectDialog.vue'
+import ExcludedProjectsDialog from './ExcludedProjectsDialog.vue'
 import {
   Search,
   RefreshCw,
@@ -30,14 +31,18 @@ import {
   Settings2,
   X,
   RotateCcw,
+  EyeOff,
 } from 'lucide-vue-next'
 
 interface Props {
   targetProjectPath?: string | null
+  /** 是否需要打开删除弹窗 */
+  targetOpenDelete?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   targetProjectPath: null,
+  targetOpenDelete: false,
 })
 
 const projectStore = useProjectStore()
@@ -63,6 +68,11 @@ const emit = defineEmits<{
 // 编辑对话框状态
 const dialogOpen = ref(false)
 const editingProject = ref<Project | null>(null)
+// 是否需要初始打开删除弹窗
+const initialOpenDelete = ref(false)
+
+// 已排除项目弹窗状态
+const excludedDialogOpen = ref(false)
 
 // 搜索输入（带防抖）
 const searchInput = ref('')
@@ -115,6 +125,12 @@ const getLauncherName = (launcherId?: string) => {
   return launcher?.name
 }
 
+// 获取项目显示名称（包含别名）
+const getProjectDisplayName = (project: Project) => {
+  const alias = project.alias
+  return alias ? `${project.name} (${alias})` : project.name
+}
+
 // 处理刷新
 const handleRefresh = async () => {
   try {
@@ -165,7 +181,7 @@ const handleEditProject = (project: Project) => {
 }
 
 // 处理保存项目设置
-const handleSaveProject = async (data: { launcherId: string | null; top: boolean }) => {
+const handleSaveProject = async (data: { launcherId: string | null; top: boolean; alias: string | null }) => {
   if (!editingProject.value) return
 
   try {
@@ -181,11 +197,41 @@ const handleSaveProject = async (data: { launcherId: string | null; top: boolean
       await projectStore.updateProjectTop(path, data.top)
     }
 
+    // 更新别名
+    if (editingProject.value.alias !== data.alias) {
+      await projectStore.updateProjectAlias(path, data.alias)
+    }
+
     emit('message', 'success', '项目设置已保存')
     dialogOpen.value = false
   } catch {
     emit('message', 'error', '保存失败')
   }
+}
+
+// 处理删除项目
+const handleDeleteProject = async (type: DeleteType) => {
+  if (!editingProject.value) return
+
+  try {
+    const path = editingProject.value.path
+    if (type === 'temp') {
+      await projectStore.removeProjectTemp(path)
+      emit('message', 'success', '项目已临时删除')
+    } else {
+      await projectStore.excludeProject(path)
+      emit('message', 'success', '项目已排除')
+    }
+    dialogOpen.value = false
+    editingProject.value = null
+  } catch {
+    emit('message', 'error', '删除失败')
+  }
+}
+
+// 处理排除项目弹窗消息
+const handleExcludedMessage = (type: 'success' | 'error', text: string) => {
+  emit('message', type, text)
 }
 
 // 处理重置单个项目打开次数
@@ -233,7 +279,7 @@ onMounted(async () => {
 
   // 如果有目标项目，等待加载完成后处理
   if (props.targetProjectPath) {
-    handleNavigateToProject(props.targetProjectPath)
+    handleNavigateToProject(props.targetProjectPath, props.targetOpenDelete)
   }
 })
 
@@ -246,23 +292,26 @@ watch(() => props.targetProjectPath, async (targetPath) => {
       const stopWatch = watch(loading, (isLoading) => {
         if (!isLoading) {
           stopWatch()
-          handleNavigateToProject(targetPath)
+          handleNavigateToProject(targetPath, props.targetOpenDelete)
         }
       })
     } else {
-      handleNavigateToProject(targetPath)
+      handleNavigateToProject(targetPath, props.targetOpenDelete)
     }
   }
 })
 
 // 处理导航到目标项目
-const handleNavigateToProject = (targetPath: string) => {
+const handleNavigateToProject = (targetPath: string, openDelete = false) => {
   // 在项目列表中查找目标项目
   const targetProject = projectStore.projects.find(p => p.path === targetPath)
 
   if (targetProject) {
     // 清除筛选条件以确保项目可见
     handleClearFilters()
+
+    // 设置是否需要打开删除弹窗
+    initialOpenDelete.value = openDelete
 
     // 打开编辑弹窗
     nextTick(() => {
@@ -288,6 +337,15 @@ const handleNavigateToProject = (targetPath: string) => {
         </p>
       </div>
       <div class="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading"
+          @click="excludedDialogOpen = true"
+        >
+          <EyeOff class="h-4 w-4" />
+          已排除项目
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -416,7 +474,7 @@ const handleNavigateToProject = (targetPath: string) => {
           <!-- 项目信息 -->
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="font-medium truncate">{{ project.name }}</span>
+              <span class="font-medium truncate" :title="getProjectDisplayName(project)">{{ getProjectDisplayName(project) }}</span>
               <!-- 置顶标记 -->
               <Pin
                 v-if="project.top"
@@ -475,8 +533,16 @@ const handleNavigateToProject = (targetPath: string) => {
       :open="dialogOpen"
       :project="editingProject"
       :launchers="launchers"
-      @update:open="dialogOpen = $event"
+      :initial-open-delete="initialOpenDelete"
+      @update:open="dialogOpen = $event; initialOpenDelete = false"
       @save="handleSaveProject"
+      @delete="handleDeleteProject"
+    />
+
+    <!-- Excluded Projects Dialog -->
+    <ExcludedProjectsDialog
+      v-model:open="excludedDialogOpen"
+      @message="handleExcludedMessage"
     />
 
     <!-- Confirm Dialog -->

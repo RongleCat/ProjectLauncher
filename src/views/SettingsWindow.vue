@@ -17,6 +17,8 @@ const message = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 const activeTab = ref('general')
 // 目标项目路径（通过 Tauri 事件接收）
 const targetProjectPath = ref<string | null>(null)
+// 是否需要打开删除弹窗
+const targetOpenDelete = ref(false)
 
 let unlistenNavigateEvent: UnlistenFn | null = null
 
@@ -26,12 +28,13 @@ onMounted(async () => {
   await launcherStore.loadLaunchers()
 
   // 监听来自搜索窗口的导航事件
-  unlistenNavigateEvent = await listen<{ path: string }>('navigate-to-project', (event) => {
-    const { path } = event.payload
+  unlistenNavigateEvent = await listen<{ path: string; openDelete?: boolean }>('navigate-to-project', (event) => {
+    const { path, openDelete } = event.payload
     // 切换到项目标签页
     activeTab.value = 'projects'
     // 设置目标项目路径（传递给 ProjectManager）
     targetProjectPath.value = path
+    targetOpenDelete.value = openDelete || false
   })
 
   // 通知搜索窗口设置页面已准备就绪
@@ -47,6 +50,7 @@ onUnmounted(() => {
 // 清除目标项目（由 ProjectManager 调用）
 const clearTargetProject = () => {
   targetProjectPath.value = null
+  targetOpenDelete.value = false
 }
 
 const showMessage = (type: 'success' | 'error', text: string) => {
@@ -115,6 +119,7 @@ const showMessage = (type: 'success' | 'error', text: string) => {
         <TabsContent value="projects" class="mt-0 min-h-0 flex-1 overflow-hidden">
           <ProjectManager
             :target-project-path="targetProjectPath"
+            :target-open-delete="targetOpenDelete"
             @message="showMessage"
             @clear-target="clearTargetProject"
           />
