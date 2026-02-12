@@ -3,7 +3,7 @@ import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLauncherStore } from '@/store'
 import type { Project, Launcher } from '@/types'
-import { Copy, Settings, ExternalLink } from 'lucide-vue-next'
+import { Copy, Settings, ExternalLink, Trash2 } from 'lucide-vue-next'
 
 interface Props {
   project: Project | null
@@ -18,6 +18,7 @@ interface Emits {
   (e: 'select-launcher', launcher: Launcher): void
   (e: 'copy-path'): void
   (e: 'open-settings'): void
+  (e: 'delete'): void
 }
 
 const props = defineProps<Props>()
@@ -31,7 +32,10 @@ const selectedIndex = ref(0)
 
 // 菜单尺寸常量
 const MENU_WIDTH = 200
-const MENU_PADDING = 8
+// 阴影范围（box-shadow: 0 4px 16px）需要额外空间
+const SHADOW_OFFSET = 16
+// 菜单与边界的安全距离（包含阴影）
+const SAFE_MARGIN = SHADOW_OFFSET + 8
 
 // 计算所有可选项（启动器 + 操作）
 const allItems = computed(() => {
@@ -42,8 +46,9 @@ const allItems = computed(() => {
     items.push({ type: 'launcher', data: launcher, label: launcher.name })
   })
 
-  // 操作列表（打开项目设置在前，复制路径在后）
+  // 操作列表：打开项目设置 -> 删除项目 -> 复制路径
   items.push({ type: 'action', data: 'open-settings', label: '打开项目设置' })
+  items.push({ type: 'action', data: 'delete', label: '删除项目' })
   items.push({ type: 'action', data: 'copy-path', label: '复制项目路径' })
 
   return items
@@ -55,42 +60,69 @@ const launcherCount = computed(() => launchers.value.length)
 // 菜单实际位置（在渲染后根据实际尺寸调整）
 const adjustedPosition = ref({ x: 0, y: 0 })
 
-// 计算菜单位置样式
-const menuStyle = computed(() => {
-  return {
-    left: `${adjustedPosition.value.x}px`,
-    top: `${adjustedPosition.value.y}px`,
-  }
-})
+// 计算菜单位置样式（始终使用 fixed 定位，因为 Teleport 到 body）
+const menuStyle = computed(() => ({
+  position: 'fixed' as const,
+  left: `${adjustedPosition.value.x}px`,
+  top: `${adjustedPosition.value.y}px`,
+}))
 
 // 根据菜单实际尺寸调整位置
 const adjustMenuPosition = () => {
-  if (!props.containerRect || !menuRef.value) return
+  if (!menuRef.value) return
 
-  const container = props.containerRect
   const menu = menuRef.value.getBoundingClientRect()
   const menuWidth = menu.width || MENU_WIDTH
   const menuHeight = menu.height || 200
 
-  // 计算相对于容器的位置
-  let relativeX = props.position.x - container.left
-  let relativeY = props.position.y - container.top
+  // 获取可用边界：优先使用容器边界，否则使用视窗
+  const bounds = props.containerRect || {
+    left: 0,
+    top: 0,
+    right: window.innerWidth,
+    bottom: window.innerHeight,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }
 
-  // 确保菜单右边不超出容器（保持 8px 间距）
-  const maxX = container.width - menuWidth - MENU_PADDING
-  relativeX = Math.min(relativeX, maxX)
+  // 计算容器的有效边界（考虑阴影安全距离）
+  const safeLeft = bounds.left + SAFE_MARGIN
+  const safeRight = bounds.left + bounds.width - SAFE_MARGIN
+  const safeTop = bounds.top + SAFE_MARGIN
+  const safeBottom = bounds.top + bounds.height - SAFE_MARGIN
 
-  // 确保菜单左边不超出容器（保持 8px 间距）
-  relativeX = Math.max(relativeX, MENU_PADDING)
+  // 初始位置：鼠标点击位置
+  let targetX = props.position.x
+  let targetY = props.position.y
 
-  // 确保菜单底部不超出容器（保持 8px 间距）
-  const maxY = container.height - menuHeight - MENU_PADDING
-  relativeY = Math.min(relativeY, maxY)
+  // 水平方向调整：确保菜单右边（含阴影）不超出安全边界
+  if (targetX + menuWidth > safeRight) {
+    // 如果右边超出，向左移动
+    targetX = safeRight - menuWidth
+  }
+  // 确保菜单左边不超出安全边界
+  if (targetX < safeLeft) {
+    targetX = safeLeft
+  }
 
-  // 确保菜单顶部不超出容器（保持 8px 间距）
-  relativeY = Math.max(relativeY, MENU_PADDING)
+  // 垂直方向调整：确保菜单底部（含阴影）不超出安全边界
+  if (targetY + menuHeight > safeBottom) {
+    // 尝试向上展开（在点击位置上方）
+    const upY = props.position.y - menuHeight
+    if (upY >= safeTop) {
+      targetY = upY
+    } else {
+      // 向上也放不下，固定在安全边界底部
+      targetY = safeBottom - menuHeight
+    }
+  }
+  // 确保菜单顶部不超出安全边界
+  if (targetY < safeTop) {
+    targetY = safeTop
+  }
 
-  adjustedPosition.value = { x: relativeX, y: relativeY }
+  // 始终使用 fixed 定位（因为 Teleport 到 body）
+  adjustedPosition.value = { x: targetX, y: targetY }
 }
 
 // 键盘事件处理函数
@@ -132,13 +164,13 @@ watch(() => props.visible, (visible) => {
   if (visible) {
     // 菜单打开：重置选中索引
     selectedIndex.value = 0
-    // 先设置初始位置（避免闪烁）
-    if (props.containerRect) {
-      adjustedPosition.value = {
-        x: props.position.x - props.containerRect.left,
-        y: props.position.y - props.containerRect.top,
-      }
+
+    // 先设置初始位置为点击位置（避免闪烁）
+    adjustedPosition.value = {
+      x: props.position.x,
+      y: props.position.y,
     }
+
     // 聚焦菜单元素并调整位置
     nextTick(() => {
       menuRef.value?.focus()
@@ -166,6 +198,8 @@ const selectItem = (index: number) => {
     emit('copy-path')
   } else if (item.data === 'open-settings') {
     emit('open-settings')
+  } else if (item.data === 'delete') {
+    emit('delete')
   }
 
   emit('close')
@@ -190,71 +224,80 @@ const handleClickOutside = (event: MouseEvent) => {
 </script>
 
 <template>
-  <!-- 不使用 Teleport，直接在父容器内渲染 -->
-  <div
-    v-if="visible && project"
-    class="context-menu-overlay"
-    @mousedown="handleClickOutside"
-  >
+  <!-- 使用 Teleport 渲染到 body，解决容器 overflow 问题 -->
+  <Teleport to="body">
     <div
-      ref="menuRef"
-      class="context-menu"
-      :style="menuStyle"
-      tabindex="-1"
+      v-if="visible && project"
+      class="context-menu-overlay"
+      @mousedown="handleClickOutside"
     >
-      <!-- 启动器列表 -->
-      <div v-if="launchers.length > 0" class="context-menu-group">
-        <div class="context-menu-heading">使用启动器打开</div>
-        <div
-          v-for="(launcher, index) in launchers"
-          :key="launcher.id"
-          class="context-menu-item"
-          :class="{ 'is-selected': isSelected(index) }"
-          @click="handleItemClick(index)"
-        >
-          <ExternalLink class="context-menu-icon" />
-          <span>{{ launcher.name }}</span>
+      <div
+        ref="menuRef"
+        class="context-menu"
+        :style="menuStyle"
+        tabindex="-1"
+      >
+        <!-- 启动器列表 -->
+        <div v-if="launchers.length > 0" class="context-menu-group">
+          <div class="context-menu-heading">使用启动器打开</div>
+          <div
+            v-for="(launcher, index) in launchers"
+            :key="launcher.id"
+            class="context-menu-item"
+            :class="{ 'is-selected': isSelected(index) }"
+            @click="handleItemClick(index)"
+          >
+            <ExternalLink class="context-menu-icon" />
+            <span>{{ launcher.name }}</span>
+          </div>
         </div>
-      </div>
 
-      <!-- 操作列表 -->
-      <div class="context-menu-group">
-        <div class="context-menu-heading">操作</div>
-        <div
-          class="context-menu-item"
-          :class="{ 'is-selected': isSelected(launcherCount) }"
-          @click="handleItemClick(launcherCount)"
-        >
-          <Settings class="context-menu-icon" />
-          <span>打开项目设置</span>
-        </div>
-        <div
-          class="context-menu-item"
-          :class="{ 'is-selected': isSelected(launcherCount + 1) }"
-          @click="handleItemClick(launcherCount + 1)"
-        >
-          <Copy class="context-menu-icon" />
-          <span>复制项目路径</span>
+        <!-- 操作列表 -->
+        <div class="context-menu-group">
+          <div class="context-menu-heading">操作</div>
+          <div
+            class="context-menu-item"
+            :class="{ 'is-selected': isSelected(launcherCount) }"
+            @click="handleItemClick(launcherCount)"
+          >
+            <Settings class="context-menu-icon" />
+            <span>打开项目设置</span>
+          </div>
+          <div
+            class="context-menu-item context-menu-item--danger"
+            :class="{ 'is-selected': isSelected(launcherCount + 1) }"
+            @click="handleItemClick(launcherCount + 1)"
+          >
+            <Trash2 class="context-menu-icon" />
+            <span>删除项目</span>
+          </div>
+          <div
+            class="context-menu-item"
+            :class="{ 'is-selected': isSelected(launcherCount + 2) }"
+            @click="handleItemClick(launcherCount + 2)"
+          >
+            <Copy class="context-menu-icon" />
+            <span>复制项目路径</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
 .context-menu-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 9999;
 }
 
 .context-menu {
-  position: absolute;
   min-width: 200px;
   max-width: 280px;
-  background: #ffffff;
+  background-color: var(--color-card);
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--color-border);
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.08);
@@ -268,14 +311,14 @@ const handleClickOutside = (event: MouseEvent) => {
 }
 
 .context-menu-group:not(:last-child) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .context-menu-heading {
   padding: 6px 12px 4px;
   font-size: 11px;
   font-weight: 500;
-  color: #71717a;
+  color: var(--color-muted-foreground);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -289,20 +332,33 @@ const handleClickOutside = (event: MouseEvent) => {
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.1s;
-  color: #18181b;
+  color: var(--color-foreground);
 }
 
 .context-menu-item:hover {
-  background-color: #f4f4f5;
+  background-color: var(--color-accent);
 }
 
 .context-menu-item.is-selected {
-  background-color: #3b82f6 !important;
-  color: #ffffff !important;
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
 }
 
 .context-menu-item.is-selected .context-menu-icon {
   opacity: 1;
+}
+
+.context-menu-item--danger {
+  color: var(--color-destructive);
+}
+
+.context-menu-item--danger:hover {
+  background-color: color-mix(in srgb, var(--color-destructive) 10%, transparent);
+}
+
+.context-menu-item--danger.is-selected {
+  background-color: var(--color-destructive) !important;
+  color: var(--color-destructive-foreground) !important;
 }
 
 .context-menu-icon {
@@ -310,32 +366,5 @@ const handleClickOutside = (event: MouseEvent) => {
   height: 14px;
   opacity: 0.7;
   flex-shrink: 0;
-}
-
-/* Dark theme */
-@media (prefers-color-scheme: dark) {
-  .context-menu {
-    background: #1e1e1e;
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.3),
-      0 2px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .context-menu-group:not(:last-child) {
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .context-menu-heading {
-    color: #a1a1aa;
-  }
-
-  .context-menu-item {
-    color: #fafafa;
-  }
-
-  .context-menu-item:hover {
-    background-color: #3f3f46;
-  }
 }
 </style>

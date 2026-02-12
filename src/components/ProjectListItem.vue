@@ -17,6 +17,13 @@ const launcherInfo = computed(() => {
   if (!props.project.launcher_id) return null
   return launcherStore.getLauncherById(props.project.launcher_id)
 })
+
+// 显示名称：包含别名
+const displayName = computed(() => {
+  const baseName = props.project.name
+  const alias = props.project.alias
+  return alias ? `${baseName} (${alias})` : baseName
+})
 </script>
 
 <template>
@@ -29,7 +36,7 @@ const launcherInfo = computed(() => {
     <!-- 项目信息 -->
     <div class="project-info">
       <div class="project-name">
-        <span class="name-text">{{ project.name }}</span>
+        <span class="name-text" :title="displayName">{{ displayName }}</span>
         <!-- 置顶图标 -->
         <Pin v-if="project.top" :size="14" class="pin-icon" />
         <!-- VCS 图标（名称后） -->
@@ -93,7 +100,7 @@ const launcherInfo = computed(() => {
 
 .pin-icon {
   flex-shrink: 0;
-  color: hsl(var(--color-primary));
+  color: var(--color-primary);
 }
 
 .vcs-badge {
@@ -103,7 +110,7 @@ const launcherInfo = computed(() => {
 
 .project-path {
   font-size: 12px;
-  color: hsl(var(--color-muted-foreground));
+  color: var(--color-muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

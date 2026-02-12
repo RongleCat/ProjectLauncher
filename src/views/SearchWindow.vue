@@ -29,6 +29,8 @@ const activeLauncherName = computed(() => {
 })
 // 刷新确认弹窗状态
 const showRefreshConfirm = ref(false)
+// 刷新中状态
+const isRefreshing = ref(false)
 // 右键菜单状态
 const contextMenuVisible = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
@@ -159,8 +161,8 @@ onMounted(async () => {
     await projectStore.loadProjects()
   })
 
-  // 监听 Escape 键
-  window.addEventListener('keydown', handleKeydown)
+  // 监听 Escape 键（使用捕获阶段，确保弹窗打开时优先处理）
+  window.addEventListener('keydown', handleKeydown, true)
 })
 
 const handleSelectProject = async (project: any) => {
@@ -188,22 +190,36 @@ const handleRefresh = async () => {
   await projectStore.forceRescan()
 }
 
-// 确认刷新
+// 确认刷新 - 立即关闭弹窗并执行刷新
 const confirmRefresh = async () => {
   showRefreshConfirm.value = false
+  isRefreshing.value = true
+  // 立即执行刷新，不等待动画
   await handleRefresh()
+  // 刷新完成后隐藏刷新中状态
+  setTimeout(() => {
+    isRefreshing.value = false
+  }, 500)
 }
 
 // Listen for Escape key and Cmd+R to refresh
 const handleKeydown = async (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
-    // 如果弹窗打开，先关闭弹窗
+    // 如果刷新确认弹窗打开，先关闭弹窗
     if (showRefreshConfirm.value) {
       showRefreshConfirm.value = false
       return
     }
     await hideSearchWindow()
     resetState()
+  }
+
+  // 刷新确认弹窗打开时，回车键确认刷新
+  if (showRefreshConfirm.value && event.key === 'Enter') {
+    event.preventDefault()
+    event.stopPropagation()
+    confirmRefresh()
+    return
   }
 
   // Cmd+R 或 Ctrl+R 打开刷新确认弹窗
@@ -351,8 +367,40 @@ const handleOpenProjectSettings = async () => {
   timeoutId = setTimeout(sendNavigateEvent, 3000)
 }
 
+// 打开删除确认弹窗（跳转到设置页面）
+const handleDeleteProject = async () => {
+  if (!contextMenuProject.value) return
+
+  const projectPath = contextMenuProject.value.path
+
+  // 先隐藏搜索窗口
+  await hideSearchWindow()
+  resetState()
+
+  // 打开设置窗口
+  await showSettingsWindow()
+
+  // 使用事件驱动方式：等待设置窗口准备就绪后再发送导航事件
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let settled = false
+
+  const sendNavigateEvent = async () => {
+    if (settled) return
+    settled = true
+    if (timeoutId) clearTimeout(timeoutId)
+    // 发送导航事件，并标记需要打开删除弹窗
+    await emitTo('settings', 'navigate-to-project', { path: projectPath, openDelete: true })
+  }
+
+  // 监听设置窗口准备就绪事件（只监听一次）
+  once('settings-ready', sendNavigateEvent)
+
+  // 超时兜底：3秒后如果没收到 ready 事件，强制发送
+  timeoutId = setTimeout(sendNavigateEvent, 3000)
+}
+
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('keydown', handleKeydown, true)
   // 取消监听启动器快捷键事件
   if (unlistenLauncherShortcut) {
     unlistenLauncherShortcut()
@@ -370,53 +418,36 @@ onUnmounted(() => {
 
 <template>
   <div class="search-window" @mousedown="handleOutsideClick">
-    <div
-      ref="containerRef"
-      class="search-container"
-      @mousedown.stop="handleMouseDown"
-    >
-      <CommandPalette
-        v-model:search="searchQuery"
-        :projects="filteredProjects"
-        :loading="loading"
-        :menu-open="contextMenuVisible"
-        :active-launcher-name="activeLauncherName"
-        @select="handleSelectProject"
-        @refresh="handleRefresh"
-        @contextmenu="handleContextMenu"
-      />
+    <div ref="containerRef" class="search-container" @mousedown.stop="handleMouseDown">
+      <CommandPalette v-model:search="searchQuery" :projects="filteredProjects" :loading="loading || isRefreshing"
+        :menu-open="contextMenuVisible" :active-launcher-name="activeLauncherName" @select="handleSelectProject"
+        @refresh="handleRefresh" @contextmenu="handleContextMenu" />
 
       <!-- 右键菜单 -->
-      <ProjectContextMenu
-        :project="contextMenuProject"
-        :visible="contextMenuVisible"
-        :position="contextMenuPosition"
-        :container-rect="containerRect"
-        @close="closeContextMenu"
-        @select-launcher="handleSelectLauncher"
-        @copy-path="handleCopyPath"
-        @open-settings="handleOpenProjectSettings"
-      />
+      <ProjectContextMenu :project="contextMenuProject" :visible="contextMenuVisible" :position="contextMenuPosition"
+        :container-rect="containerRect" @close="closeContextMenu" @select-launcher="handleSelectLauncher"
+        @copy-path="handleCopyPath" @open-settings="handleOpenProjectSettings" @delete="handleDeleteProject" />
 
       <!-- 内联刷新确认弹窗（横向布局） -->
-      <Transition name="fade">
-        <div v-if="showRefreshConfirm" class="confirm-overlay" @click.self="showRefreshConfirm = false">
-          <div class="confirm-dialog">
-            <div class="confirm-content">
-              <h3 class="confirm-title">重新扫描项目</h3>
-              <p class="confirm-description">重新搜索工作区内的项目，保留打开记录、启动器配置等用户数据</p>
-            </div>
-            <div class="confirm-actions">
-              <Button variant="outline" size="sm" @click="showRefreshConfirm = false">
-                取消
-              </Button>
-              <Button size="sm" @click="confirmRefresh">
-                确认
-              </Button>
-            </div>
+      <div v-if="showRefreshConfirm" class="confirm-overlay" @click.self="showRefreshConfirm = false">
+        <div class="confirm-dialog" :class="{ 'is-refreshing': isRefreshing }">
+          <div class="confirm-content">
+            <h3 class="confirm-title">
+              重新扫描项目
+            </h3>
+            <p class="confirm-description">重新搜索工作区内的项目，保留打开记录、启动器配置等用户数据</p>
+          </div>
+          <div class="confirm-actions">
+            <Button variant="outline" size="sm" @click="showRefreshConfirm = false">
+              取消
+            </Button>
+            <Button size="sm" @click="confirmRefresh" :disabled="isRefreshing">
+              <span class="spinner" v-if="isRefreshing"></span>
+              <span v-else>确认</span>
+            </Button>
           </div>
         </div>
-      </Transition>
+      </div>
     </div>
   </div>
 </template>
@@ -437,7 +468,7 @@ onUnmounted(() => {
   position: relative;
   width: 720px;
   max-width: calc(100vw - 80px);
-  background: #ffffff;
+  background-color: var(--color-card);
   border-radius: 12px;
   /* Re-apply fit-content to prevent empty space rendering */
   display: flex;
@@ -468,34 +499,6 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* Dark theme support */
-@media (prefers-color-scheme: dark) {
-  .search-container {
-    background: #1e1e1e;
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.1),
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 8px 32px rgba(0, 0, 0, 0.2);
-  }
-
-  .confirm-overlay {
-    background: rgba(0, 0, 0, 0.6);
-  }
-
-  .confirm-dialog {
-    background: #1e1e1e;
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .confirm-title {
-    color: #ffffff;
-  }
-
-  .confirm-description {
-    color: #a1a1aa;
-  }
-}
-
 /* 内联确认弹窗样式（横向布局） */
 .confirm-overlay {
   position: absolute;
@@ -507,12 +510,17 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 10;
   padding: 8px;
+  pointer-events: auto;
+}
+
+.confirm-overlay>* {
+  pointer-events: auto;
 }
 
 .confirm-dialog {
-  background: #ffffff;
+  background-color: var(--color-card);
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--color-border);
   padding: 12px 16px;
   width: 100%;
   max-width: 500px;
@@ -521,6 +529,12 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-height: 60px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .confirm-content {
@@ -531,34 +545,41 @@ onUnmounted(() => {
 .confirm-title {
   font-size: 14px;
   font-weight: 600;
-  color: #18181b;
+  color: var(--color-foreground);
   margin: 0;
   white-space: nowrap;
 }
 
 .confirm-description {
   font-size: 12px;
-  color: #71717a;
+  color: var(--color-muted-foreground);
   margin: 2px 0 0 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.confirm-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+/* 刷新中加载指示器 */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
-/* 过渡动画 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.ml-2 {
+  margin-left: 8px;
 }
 </style>
