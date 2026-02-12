@@ -37,6 +37,10 @@ const listRef = ref<HTMLElement | null>(null)
 const isIMEComposing = ref(false)
 const compositionJustEnded = ref(false)
 
+// 键盘导航节流状态
+let lastNavigationTime = 0
+const NAVIGATION_THROTTLE_MS = 50
+
 const handleCompositionStart = () => {
   isIMEComposing.value = true
   compositionJustEnded.value = false
@@ -45,8 +49,11 @@ const handleCompositionStart = () => {
 const handleCompositionEnd = () => {
   isIMEComposing.value = false
   // Safari/WebKit: keydown 在 compositionend 之后触发
-  // 设置 flag 来捕获这个 "迟到" 的 keydown
+  // 使用 requestAnimationFrame 确保在下一帧重置，避免竞态条件
   compositionJustEnded.value = true
+  requestAnimationFrame(() => {
+    compositionJustEnded.value = false
+  })
 }
 
 // 搜索内容变化时重置选中索引
@@ -90,10 +97,16 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 
   const { key } = event
+  const now = Date.now()
 
   if (key === 'ArrowDown') {
     event.preventDefault()
     event.stopPropagation()
+    // 节流：防止快速按键导致的卡顿
+    if (now - lastNavigationTime < NAVIGATION_THROTTLE_MS) {
+      return
+    }
+    lastNavigationTime = now
     if (props.projects.length > 0 && selectedIndex.value < props.projects.length - 1) {
       selectedIndex.value++
       scrollToSelected()
@@ -101,6 +114,11 @@ const handleKeydown = (event: KeyboardEvent) => {
   } else if (key === 'ArrowUp') {
     event.preventDefault()
     event.stopPropagation()
+    // 节流：防止快速按键导致的卡顿
+    if (now - lastNavigationTime < NAVIGATION_THROTTLE_MS) {
+      return
+    }
+    lastNavigationTime = now
     if (props.projects.length > 0 && selectedIndex.value > 0) {
       selectedIndex.value--
       scrollToSelected()
@@ -115,13 +133,10 @@ const handleKeydown = (event: KeyboardEvent) => {
     }
   } else if (key === 'Enter') {
     // 忽略 IME 输入法组合状态下的回车键
-    // 检查：手动跟踪状态 + compositionJustEnded (Safari workaround) + event.isComposing + keyCode 229
-    if (isIMEComposing.value || compositionJustEnded.value || event.isComposing || event.keyCode === 229) {
-      // 阻止事件传播到 Radix Combobox
+    // 检查：手动跟踪状态 + compositionJustEnded (Safari workaround) + event.isComposing
+    if (isIMEComposing.value || compositionJustEnded.value || event.isComposing) {
       event.preventDefault()
       event.stopPropagation()
-      // 重置 compositionJustEnded flag（仅阻止紧跟 compositionend 的第一个 keydown）
-      compositionJustEnded.value = false
       return
     }
     event.preventDefault()
