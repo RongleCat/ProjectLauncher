@@ -10,6 +10,7 @@ import { isFileManagerLauncher } from '@/config/presetApps'
 import CommandPalette from '@/components/CommandPalette.vue'
 import ProjectContextMenu from '@/components/ProjectContextMenu.vue'
 import { Button } from '@/components/ui/button'
+import { XCircle } from 'lucide-vue-next'
 import type { Project, Launcher } from '@/types'
 
 const projectStore = useProjectStore()
@@ -43,6 +44,9 @@ let unlistenProjectsUpdated: UnlistenFn | null = null
 let unlistenLaunchersUpdated: UnlistenFn | null = null
 let focusLostTimer: ReturnType<typeof setTimeout> | null = null
 let shortcutProtectionTimer: ReturnType<typeof setTimeout> | null = null
+// 错误消息状态
+const errorMessage = ref<string | null>(null)
+let errorTimer: ReturnType<typeof setTimeout> | null = null
 // 快捷键触发后的焦点保护期（防止焦点切换导致窗口自动关闭）
 let isShortcutProtected = false
 
@@ -70,6 +74,33 @@ const setShortcutProtection = () => {
   shortcutProtectionTimer = setTimeout(() => {
     isShortcutProtected = false
   }, 500)
+}
+
+// 显示启动错误（Toast + 系统通知）
+const showLaunchError = async (error: unknown) => {
+  const msg = typeof error === 'string' ? error : '启动项目失败'
+
+  // Toast 提示
+  if (errorTimer) clearTimeout(errorTimer)
+  errorMessage.value = msg
+  errorTimer = setTimeout(() => {
+    errorMessage.value = null
+  }, 4000)
+
+  // 系统通知
+  try {
+    const { sendNotification, isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification')
+    let permitted = await isPermissionGranted()
+    if (!permitted) {
+      const permission = await requestPermission()
+      permitted = permission === 'granted'
+    }
+    if (permitted) {
+      sendNotification({ title: 'Project Launcher', body: msg })
+    }
+  } catch (e) {
+    console.warn('发送系统通知失败:', e)
+  }
 }
 
 // 清空状态
@@ -183,6 +214,7 @@ const handleSelectProject = async (project: any) => {
     resetState()
   } catch (error) {
     console.error('启动项目失败:', error)
+    showLaunchError(error)
   }
 }
 
@@ -318,6 +350,7 @@ const handleSelectLauncher = async (launcher: Launcher) => {
     resetState()
   } catch (error) {
     console.error('启动项目失败:', error)
+    showLaunchError(error)
   }
 }
 
@@ -419,6 +452,26 @@ onUnmounted(() => {
 <template>
   <div class="search-window" @mousedown="handleOutsideClick">
     <div ref="containerRef" class="search-container" @mousedown.stop="handleMouseDown">
+      <!-- 错误 Toast -->
+      <Transition
+        enter-active-class="transition ease-out duration-200"
+        enter-from-class="opacity-0 -translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition ease-in duration-150"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 -translate-y-2"
+      >
+        <div
+          v-if="errorMessage"
+          class="absolute top-3 left-1/2 z-50 -translate-x-1/2"
+        >
+          <div class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 shadow-lg dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+            <XCircle class="h-4 w-4 shrink-0" />
+            {{ errorMessage }}
+          </div>
+        </div>
+      </Transition>
+
       <CommandPalette v-model:search="searchQuery" :projects="filteredProjects" :loading="loading || isRefreshing"
         :menu-open="contextMenuVisible" :active-launcher-name="activeLauncherName" @select="handleSelectProject"
         @refresh="handleRefresh" @contextmenu="handleContextMenu" />

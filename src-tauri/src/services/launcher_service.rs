@@ -1,4 +1,6 @@
 use std::process::Command;
+use std::process::Stdio;
+use std::io::Read;
 use crate::models::launcher::Launcher;
 use anyhow::Result;
 
@@ -47,11 +49,17 @@ impl LauncherService {
     #[cfg(target_os = "macos")]
     fn open_with_app(app_path: &str, project_path: &str) -> Result<()> {
         println!("[Launcher] 执行命令: open -a \"{}\" \"{}\"", app_path, project_path);
-        Command::new("open")
+        let output = Command::new("open")
             .arg("-a")
             .arg(app_path)
             .arg(project_path)
-            .spawn()?;
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let msg = stderr.trim();
+            anyhow::bail!("{}", if msg.is_empty() { "应用启动失败" } else { msg });
+        }
         Ok(())
     }
 
@@ -91,9 +99,30 @@ impl LauncherService {
 
         #[cfg(not(target_os = "windows"))]
         {
-            Command::new("sh")
+            let mut child = Command::new("sh")
                 .args(["-c", &cmd_replaced])
+                .stderr(Stdio::piped())
                 .spawn()?;
+
+            // 短暂等待以捕获立即失败（如 command not found）
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            if let Some(status) = child.try_wait()? {
+                if !status.success() {
+                    let stderr = child.stderr.take()
+                        .map(|mut s| {
+                            let mut buf = String::new();
+                            s.read_to_string(&mut buf).ok();
+                            buf
+                        })
+                        .unwrap_or_default();
+                    let msg = stderr.trim().to_string();
+                    anyhow::bail!("{}", if msg.is_empty() {
+                        format!("命令执行失败，退出码: {}", status.code().unwrap_or(-1))
+                    } else {
+                        msg
+                    });
+                }
+            }
         }
 
         Ok(())

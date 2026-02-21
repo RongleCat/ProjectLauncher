@@ -27,6 +27,7 @@ pub fn run() {
             Some(vec![]),
         ))
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // macOS: 启动时设置为 Accessory 模式，不显示在 Dock
             #[cfg(target_os = "macos")]

@@ -8,7 +8,8 @@ import GeneralSettings from '@/components/settings/GeneralSettings.vue'
 import LauncherManager from '@/components/settings/LauncherManager.vue'
 import ProjectManager from '@/components/settings/ProjectManager.vue'
 import ImportExportSettings from '@/components/settings/ImportExportSettings.vue'
-import { Settings, Rocket, FolderCode, CheckCircle, XCircle, ArrowLeftRight } from 'lucide-vue-next'
+import AboutSettings from '@/components/settings/AboutSettings.vue'
+import { Settings, Rocket, FolderCode, CheckCircle, XCircle, ArrowLeftRight, Info } from 'lucide-vue-next'
 
 const settingsStore = useSettingsStore()
 const launcherStore = useLauncherStore()
@@ -110,6 +111,10 @@ const showMessage = (type: 'success' | 'error', text: string) => {
             <ArrowLeftRight class="h-4 w-4" />
             导入导出
           </TabsTrigger>
+          <TabsTrigger value="about" class="flex-1 gap-2">
+            <Info class="h-4 w-4" />
+            关于
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" class="mt-0 min-h-0 flex-1 overflow-y-auto">
@@ -131,6 +136,10 @@ const showMessage = (type: 'success' | 'error', text: string) => {
 
         <TabsContent value="import-export" class="mt-0 min-h-0 flex-1 overflow-y-auto">
           <ImportExportSettings @message="showMessage" />
+        </TabsContent>
+
+        <TabsContent value="about" class="mt-0 min-h-0 flex-1 overflow-y-auto">
+          <AboutSettings />
         </TabsContent>
       </Tabs>
     </main>
